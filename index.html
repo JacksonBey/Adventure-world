@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Player Movement</title>
+    <title>Player Movement with Tiled Background</title>
     <style>
         body {
             margin: 0;
@@ -12,15 +12,15 @@
             justify-content: center;
             align-items: center;
             min-height: 100vh; /* Ensure full viewport height */
-            background-color: #f0f0f0; /* Light gray background */
+            background-color: #333; /* Darker background for contrast */
             font-family: 'Arial', sans-serif; /* Basic font */
         }
         canvas {
-            border: 1px solid #000; /* Black border for the canvas */
-            background-color: #fff; /* White background for the canvas */
+            border: 2px solid #555; /* Slightly thicker border */
+            background-color: #fff; /* White background for the canvas (will be covered by tiles) */
             display: block; /* Remove extra space below canvas */
+            box-shadow: 0 0 10px rgba(0,0,0,0.5); /* Add a subtle shadow to the canvas */
         }
-        /* Removed .controls CSS as it's not used in this phase */
     </style>
 </head>
 <body>
@@ -32,14 +32,19 @@
         // Get the 2D rendering context for the canvas
         const ctx = canvas.getContext('2d');
 
+        // Tile properties
+        const TILE_SIZE = 40; // Size of each grass tile in pixels
+        const TILE_COLOR_LIGHT = '#6aa84f'; // A lighter green for tiles
+        const TILE_COLOR_DARK = '#5a943f';  // A darker green for a checkerboard pattern
+
         // Player properties
         const player = {
             x: 0,          // Player's x position (will be calculated)
             y: 0,          // Player's y position (will be calculated)
-            width: 50,     // Width of the player sprite
-            height: 50,    // Height of the player sprite
-            color: 'red', // Changed color for visibility
-            speed: 5       // Movement speed of the player (pixels per frame)
+            width: 30,     // Width of the player sprite (slightly smaller)
+            height: 30,    // Height of the player sprite (slightly smaller)
+            color: 'orange', // Player color
+            speed: 4       // Movement speed of the player (pixels per frame)
         };
 
         // Object to keep track of pressed keys
@@ -47,9 +52,9 @@
             ArrowUp: false,
             ArrowDown: false,
             ArrowLeft: false,
-            ArrowRight: false
-            // Add WASD if needed:
-            // w: false, a: false, s: false, d: false
+            ArrowRight: false,
+            // For WASD controls (optional)
+            w: false, a: false, s: false, d: false
         };
 
         /**
@@ -57,9 +62,13 @@
          * @param {KeyboardEvent} event - The keyboard event object.
          */
         function keyDownHandler(event) {
-            if (event.key in keysPressed) {
+            const key = event.key.toLowerCase(); // Normalize key to lowercase for WASD
+            if (event.key in keysPressed) { // Arrow keys
                 keysPressed[event.key] = true;
-                event.preventDefault(); // Prevent default browser action for arrow keys (scrolling)
+                event.preventDefault();
+            } else if (key in keysPressed) { // WASD keys
+                keysPressed[key] = true;
+                event.preventDefault();
             }
         }
 
@@ -68,8 +77,12 @@
          * @param {KeyboardEvent} event - The keyboard event object.
          */
         function keyUpHandler(event) {
+            const key = event.key.toLowerCase();
             if (event.key in keysPressed) {
                 keysPressed[event.key] = false;
+                event.preventDefault();
+            } else if (key in keysPressed) {
+                keysPressed[key] = false;
                 event.preventDefault();
             }
         }
@@ -79,36 +92,43 @@
          * Also handles boundary collision to keep the player within the canvas.
          */
         function updatePlayerPosition() {
-            // Move player based on pressed keys
-            if (keysPressed.ArrowUp) {
+            // Move player based on pressed keys (Arrow keys or WASD)
+            if (keysPressed.ArrowUp || keysPressed.w) {
                 player.y -= player.speed;
             }
-            if (keysPressed.ArrowDown) {
+            if (keysPressed.ArrowDown || keysPressed.s) {
                 player.y += player.speed;
             }
-            if (keysPressed.ArrowLeft) {
+            if (keysPressed.ArrowLeft || keysPressed.a) {
                 player.x -= player.speed;
             }
-            if (keysPressed.ArrowRight) {
+            if (keysPressed.ArrowRight || keysPressed.d) {
                 player.x += player.speed;
             }
 
             // Boundary checks to keep player within canvas
-            // Left boundary
-            if (player.x < 0) {
-                player.x = 0;
-            }
-            // Right boundary
-            if (player.x + player.width > canvas.width) {
-                player.x = canvas.width - player.width;
-            }
-            // Top boundary
-            if (player.y < 0) {
-                player.y = 0;
-            }
-            // Bottom boundary
-            if (player.y + player.height > canvas.height) {
-                player.y = canvas.height - player.height;
+            if (player.x < 0) player.x = 0;
+            if (player.x + player.width > canvas.width) player.x = canvas.width - player.width;
+            if (player.y < 0) player.y = 0;
+            if (player.y + player.height > canvas.height) player.y = canvas.height - player.height;
+        }
+
+        /**
+         * Function to draw the tiled background map.
+         */
+        function drawMap() {
+            for (let y = 0; y < canvas.height; y += TILE_SIZE) {
+                for (let x = 0; x < canvas.width; x += TILE_SIZE) {
+                    // Determine tile color for a checkerboard pattern
+                    const tileX = Math.floor(x / TILE_SIZE);
+                    const tileY = Math.floor(y / TILE_SIZE);
+                    if ((tileX + tileY) % 2 === 0) {
+                        ctx.fillStyle = TILE_COLOR_LIGHT;
+                    } else {
+                        ctx.fillStyle = TILE_COLOR_DARK;
+                    }
+                    ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+                }
             }
         }
 
@@ -116,24 +136,26 @@
          * Function to draw the player sprite on the canvas.
          */
         function drawPlayer() {
-            // Set the fill color for the player
             ctx.fillStyle = player.color;
-            // Draw a filled rectangle for the player
             ctx.fillRect(player.x, player.y, player.width, player.height);
+            // Add a simple border to the player for better visibility
+            ctx.strokeStyle = 'black';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(player.x, player.y, player.width, player.height);
         }
 
         /**
          * Main game loop. Clears the canvas, updates game state, and redraws.
          */
         function gameLoop() {
-            // Clear the entire canvas before drawing
+            // Clear the entire canvas (optional if map covers everything, but good practice)
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+            drawMap();              // Draw the background map first
             updatePlayerPosition(); // Update player's state
-            drawPlayer();           // Draw the player at the new position
+            drawPlayer();           // Draw the player on top of the map
 
-            // Request the next frame to continue the loop
-            requestAnimationFrame(gameLoop);
+            requestAnimationFrame(gameLoop); // Request the next frame
         }
 
         /**
@@ -141,37 +163,51 @@
          * Called on initial load and when the window is resized.
          */
         function resizeCanvas() {
-            // Set canvas dimensions (e.g., 80% of window size)
-            canvas.width = window.innerWidth * 0.8;
-            canvas.height = window.innerHeight * 0.8;
+            const aspectRatio = 16 / 9; // Example aspect ratio
+            let newWidth = window.innerWidth * 0.8;
+            let newHeight = window.innerHeight * 0.8;
 
-            // Recalculate player position to keep it centered initially or after resize
-            // This ensures if the canvas shrinks, the player is not off-screen.
-            // For more sophisticated handling, you might want to adjust based on current player pos.
-            player.x = (canvas.width - player.width) / 2;
-            player.y = (canvas.height - player.height) / 2;
+            // Adjust to maintain aspect ratio (optional, but can look better)
+            if (newWidth / newHeight > aspectRatio) {
+                newWidth = newHeight * aspectRatio;
+            } else {
+                newHeight = newWidth / aspectRatio;
+            }
 
-            // No need to call drawPlayer() here, gameLoop will handle it.
-            // However, if there was a noticeable flicker or delay, one could call it.
+            canvas.width = newWidth;
+            canvas.height = newHeight;
+
+
+            // Center player only if it's the first load or if desired on resize
+            // For now, we'll re-center. If the map was scrollable, this logic would change.
+            if (!player.initialPositionSet) { // Check if initial position has been set
+                 player.x = (canvas.width - player.width) / 2;
+                 player.y = (canvas.height - player.height) / 2;
+                 player.initialPositionSet = true; // Mark that initial position is set
+            } else {
+                // If resizing, ensure player stays within new bounds if they were near an edge
+                if (player.x + player.width > canvas.width) player.x = canvas.width - player.width;
+                if (player.y + player.height > canvas.height) player.y = canvas.height - player.height;
+                if (player.x < 0) player.x = 0;
+                if (player.y < 0) player.y = 0;
+            }
+
+            // The gameLoop will handle redrawing the map and player
         }
 
         /**
          * Initialization function.
-         * Sets up event listeners, initial canvas size, and starts the game loop.
          */
         function init() {
-            // Add event listeners for key presses
             document.addEventListener('keydown', keyDownHandler);
             document.addEventListener('keyup', keyUpHandler);
 
-            // Set initial canvas size and player position
-            resizeCanvas();
+            player.initialPositionSet = false; // Flag to help with initial centering
+            resizeCanvas(); // Set initial canvas size and player position
 
-            // Start the game loop
-            gameLoop();
+            window.addEventListener('resize', resizeCanvas); // Handle window resizing
 
-            // Add event listener for window resize
-            window.addEventListener('resize', resizeCanvas);
+            gameLoop(); // Start the game loop
         }
 
         // Call the init function when the window is fully loaded
