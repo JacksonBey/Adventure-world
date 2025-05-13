@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Static Player Sprite</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden; /* Hide scrollbars */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh; /* Ensure full viewport height */
+            background-color: #f0f0f0; /* Light gray background */
+            font-family: 'Arial', sans-serif; /* Basic font */
+        }
+        canvas {
+            border: 1px solid #000; /* Black border for the canvas */
+            background-color: #fff; /* White background for the canvas */
+            display: block; /* Remove extra space below canvas */
+        }
+        .controls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background-color: rgba(255, 255, 255, 0.8);
+            padding: 10px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .controls label, .controls input {
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas"></canvas>
+
+    <script>
+        // Get the canvas element from the HTML
+        const canvas = document.getElementById('gameCanvas');
+        // Get the 2D rendering context for the canvas
+        const ctx = canvas.getContext('2d');
+
+        // Player properties
+        const player = {
+            x: 0, // Player's x position (will be calculated)
+            y: 0, // Player's y position (will be calculated)
+            width: 50, // Width of the player sprite
+            height: 50, // Height of the player sprite
+            color: 'blue' // Color of the player sprite
+        };
+
+        /**
+         * Function to resize the canvas to fill a portion of the window
+         * and keep the player centered.
+         */
+        function resizeCanvas() {
+            // Set canvas dimensions (e.g., 80% of window size)
+            canvas.width = window.innerWidth * 0.8;
+            canvas.height = window.innerHeight * 0.8;
+
+            // Recalculate player position to keep it centered
+            player.x = (canvas.width - player.width) / 2;
+            player.y = (canvas.height - player.height) / 2;
+
+            // Redraw the player
+            drawPlayer();
+        }
+
+        /**
+         * Function to draw the player sprite on the canvas.
+         */
+        function drawPlayer() {
+            // Clear the entire canvas before drawing
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Set the fill color for the player
+            ctx.fillStyle = player.color;
+
+            // Draw a filled rectangle for the player
+            // ctx.fillRect(x, y, width, height)
+            ctx.fillRect(player.x, player.y, player.width, player.height);
+        }
+
+        /**
+         * Initialization function.
+         * This function is called when the window has finished loading.
+         */
+        function init() {
+            // Set initial canvas size and draw player
+            resizeCanvas();
+
+            // Add event listener for window resize
+            window.addEventListener('resize', resizeCanvas);
+        }
+
+        // Call the init function when the window is fully loaded
+        window.onload = init;
+    </script>
+</body>
+</html>
