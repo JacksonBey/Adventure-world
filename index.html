@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Static Player Sprite</title>
+    <title>Player Movement</title>
     <style>
         body {
             margin: 0;
@@ -20,18 +20,7 @@
             background-color: #fff; /* White background for the canvas */
             display: block; /* Remove extra space below canvas */
         }
-        .controls {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            background-color: rgba(255, 255, 255, 0.8);
-            padding: 10px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        .controls label, .controls input {
-            margin-right: 10px;
-        }
+        /* Removed .controls CSS as it's not used in this phase */
     </style>
 </head>
 <body>
@@ -45,52 +34,141 @@
 
         // Player properties
         const player = {
-            x: 0, // Player's x position (will be calculated)
-            y: 0, // Player's y position (will be calculated)
-            width: 50, // Width of the player sprite
-            height: 50, // Height of the player sprite
-            color: 'blue' // Color of the player sprite
+            x: 0,          // Player's x position (will be calculated)
+            y: 0,          // Player's y position (will be calculated)
+            width: 50,     // Width of the player sprite
+            height: 50,    // Height of the player sprite
+            color: 'red', // Changed color for visibility
+            speed: 5       // Movement speed of the player (pixels per frame)
+        };
+
+        // Object to keep track of pressed keys
+        const keysPressed = {
+            ArrowUp: false,
+            ArrowDown: false,
+            ArrowLeft: false,
+            ArrowRight: false
+            // Add WASD if needed:
+            // w: false, a: false, s: false, d: false
         };
 
         /**
-         * Function to resize the canvas to fill a portion of the window
-         * and keep the player centered.
+         * Handles keydown events to set the corresponding key state to true.
+         * @param {KeyboardEvent} event - The keyboard event object.
          */
-        function resizeCanvas() {
-            // Set canvas dimensions (e.g., 80% of window size)
-            canvas.width = window.innerWidth * 0.8;
-            canvas.height = window.innerHeight * 0.8;
+        function keyDownHandler(event) {
+            if (event.key in keysPressed) {
+                keysPressed[event.key] = true;
+                event.preventDefault(); // Prevent default browser action for arrow keys (scrolling)
+            }
+        }
 
-            // Recalculate player position to keep it centered
-            player.x = (canvas.width - player.width) / 2;
-            player.y = (canvas.height - player.height) / 2;
+        /**
+         * Handles keyup events to set the corresponding key state to false.
+         * @param {KeyboardEvent} event - The keyboard event object.
+         */
+        function keyUpHandler(event) {
+            if (event.key in keysPressed) {
+                keysPressed[event.key] = false;
+                event.preventDefault();
+            }
+        }
 
-            // Redraw the player
-            drawPlayer();
+        /**
+         * Updates the player's position based on currently pressed keys.
+         * Also handles boundary collision to keep the player within the canvas.
+         */
+        function updatePlayerPosition() {
+            // Move player based on pressed keys
+            if (keysPressed.ArrowUp) {
+                player.y -= player.speed;
+            }
+            if (keysPressed.ArrowDown) {
+                player.y += player.speed;
+            }
+            if (keysPressed.ArrowLeft) {
+                player.x -= player.speed;
+            }
+            if (keysPressed.ArrowRight) {
+                player.x += player.speed;
+            }
+
+            // Boundary checks to keep player within canvas
+            // Left boundary
+            if (player.x < 0) {
+                player.x = 0;
+            }
+            // Right boundary
+            if (player.x + player.width > canvas.width) {
+                player.x = canvas.width - player.width;
+            }
+            // Top boundary
+            if (player.y < 0) {
+                player.y = 0;
+            }
+            // Bottom boundary
+            if (player.y + player.height > canvas.height) {
+                player.y = canvas.height - player.height;
+            }
         }
 
         /**
          * Function to draw the player sprite on the canvas.
          */
         function drawPlayer() {
-            // Clear the entire canvas before drawing
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-
             // Set the fill color for the player
             ctx.fillStyle = player.color;
-
             // Draw a filled rectangle for the player
-            // ctx.fillRect(x, y, width, height)
             ctx.fillRect(player.x, player.y, player.width, player.height);
         }
 
         /**
+         * Main game loop. Clears the canvas, updates game state, and redraws.
+         */
+        function gameLoop() {
+            // Clear the entire canvas before drawing
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            updatePlayerPosition(); // Update player's state
+            drawPlayer();           // Draw the player at the new position
+
+            // Request the next frame to continue the loop
+            requestAnimationFrame(gameLoop);
+        }
+
+        /**
+         * Function to resize the canvas and re-center the player.
+         * Called on initial load and when the window is resized.
+         */
+        function resizeCanvas() {
+            // Set canvas dimensions (e.g., 80% of window size)
+            canvas.width = window.innerWidth * 0.8;
+            canvas.height = window.innerHeight * 0.8;
+
+            // Recalculate player position to keep it centered initially or after resize
+            // This ensures if the canvas shrinks, the player is not off-screen.
+            // For more sophisticated handling, you might want to adjust based on current player pos.
+            player.x = (canvas.width - player.width) / 2;
+            player.y = (canvas.height - player.height) / 2;
+
+            // No need to call drawPlayer() here, gameLoop will handle it.
+            // However, if there was a noticeable flicker or delay, one could call it.
+        }
+
+        /**
          * Initialization function.
-         * This function is called when the window has finished loading.
+         * Sets up event listeners, initial canvas size, and starts the game loop.
          */
         function init() {
-            // Set initial canvas size and draw player
+            // Add event listeners for key presses
+            document.addEventListener('keydown', keyDownHandler);
+            document.addEventListener('keyup', keyUpHandler);
+
+            // Set initial canvas size and player position
             resizeCanvas();
+
+            // Start the game loop
+            gameLoop();
 
             // Add event listener for window resize
             window.addEventListener('resize', resizeCanvas);
