@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Larger, Varied World with Walkable 'Tree-Grass'</title>
+    <title>Pixel Peasant Player Sprite</title>
     <style>
         body {
             margin: 0;
@@ -12,14 +12,14 @@
             justify-content: center;
             align-items: center;
             min-height: 100vh;
-            background-color: #1e1e1e; /* Darker background for better game focus */
+            background-color: #1e1e1e;
             font-family: 'Arial', sans-serif;
         }
         canvas {
-            border: 3px solid #555; /* Slightly lighter border for contrast */
-            background-color: #000; /* Fallback background, map should cover it */
+            border: 3px solid #555;
+            background-color: #000;
             display: block;
-            box-shadow: 0 0 20px rgba(0,0,0,0.8); /* More pronounced shadow */
+            box-shadow: 0 0 20px rgba(0,0,0,0.8);
         }
     </style>
 </head>
@@ -33,44 +33,164 @@
 
         // Tile and World properties
         const TILE_SIZE = 40;
-        const WORLD_COLS = 120; // Significantly larger world
-        const WORLD_ROWS = 80;  // Significantly larger world
+        const WORLD_COLS = 120;
+        const WORLD_ROWS = 80;
         const worldWidth = WORLD_COLS * TILE_SIZE;
         const worldHeight = WORLD_ROWS * TILE_SIZE;
 
         // Tile type IDs
         const TILE_ID = {
-            GRASS: 0,
-            WATER: 1,
-            STONE: 2,
-            DIRT:  3,
-            TREE:  4, // This will now be walkable grass
-            SAND:  5
+            GRASS: 0, WATER: 1, STONE: 2, DIRT:  3, TREE:  4, SAND:  5
         };
 
-        // Tile type definitions (color, walkability)
+        // Tile type definitions
         const tileTypes = {
             [TILE_ID.GRASS]: { name: 'grass', color: '#7db860', walkable: true },
             [TILE_ID.WATER]: { name: 'water', color: '#4a90e2', walkable: false },
             [TILE_ID.STONE]: { name: 'stone', color: '#9b9b9b', walkable: true },
             [TILE_ID.DIRT]:  { name: 'dirt',  color: '#8b5a2b', walkable: true },
-            // Tree tiles are now walkable and look like grass
             [TILE_ID.TREE]:  { name: 'tree_grass',  color: '#7db860', walkable: true, isObstacle: false },
             [TILE_ID.SAND]:  { name: 'sand',  color: '#f4a460', walkable: true }
         };
 
-        // Game map data (2D array of tile IDs)
+        // Game map data
         let gameMap = [];
 
         // Player properties
         const player = {
             x: worldWidth / 2,
             y: worldHeight / 2,
-            width: 28,
-            height: 28,
-            color: '#ff8c00', // DarkOrange
-            speed: 3.8
+            width: 28, // Hitbox width
+            height: 28, // Hitbox height
+            speed: 3.8,
+            facing: 'down', // Initial facing direction: 'up', 'down', 'left', 'right'
+            spriteSheet: null, // Will hold the pre-rendered sprites
+            spriteFrameWidth: 32, // Visual width of the sprite
+            spriteFrameHeight: 40 // Visual height of the sprite
         };
+
+        // Define colors for the peasant sprite
+        const peasantColors = {
+            skin: '#f0c0a0',    // Light skin tone
+            hair: '#5D4037',    // Brown hair
+            tunic: '#a0522d',   // Sienna/brown tunic
+            pants: '#654321',   // Darker brown pants
+            eyes: '#000000'     // Black eyes
+        };
+
+        /**
+         * Creates and pre-renders the player sprite sheet for different directions.
+         * Each direction will be a separate canvas.
+         */
+        function createPlayerSpriteSheet() {
+            player.spriteSheet = {
+                'down': createPeasantSpriteFrame('down'),
+                'up': createPeasantSpriteFrame('up'),
+                'left': createPeasantSpriteFrame('left'),
+                'right': createPeasantSpriteFrame('right')
+            };
+        }
+
+        /**
+         * Creates a single sprite frame (as an offscreen canvas) for a given direction.
+         * @param {string} direction - 'up', 'down', 'left', or 'right'
+         * @returns {HTMLCanvasElement} An offscreen canvas with the rendered sprite.
+         */
+        function createPeasantSpriteFrame(direction) {
+            const frameCanvas = document.createElement('canvas');
+            frameCanvas.width = player.spriteFrameWidth;
+            frameCanvas.height = player.spriteFrameHeight;
+            const frameCtx = frameCanvas.getContext('2d');
+
+            // Pixel size for drawing the sprite
+            const px = 4; // Each "pixel" of the sprite will be px*px on the frameCanvas
+
+            // Common elements
+            // Head
+            frameCtx.fillStyle = peasantColors.skin;
+            frameCtx.fillRect(3*px, 0*px, 2*px, 2*px); // Top of head
+            frameCtx.fillRect(2*px, 1*px, 4*px, 3*px); // Main head shape
+
+            // Hair
+            frameCtx.fillStyle = peasantColors.hair;
+            frameCtx.fillRect(2*px, 0*px, 4*px, 1*px); // Hair top
+            frameCtx.fillRect(1*px, 1*px, 1*px, 2*px); // Hair side left
+            frameCtx.fillRect(6*px, 1*px, 1*px, 2*px); // Hair side right
+
+
+            // Tunic
+            frameCtx.fillStyle = peasantColors.tunic;
+            frameCtx.fillRect(2*px, 4*px, 4*px, 4*px); // Torso
+
+            // Pants
+            frameCtx.fillStyle = peasantColors.pants;
+
+            // Direction-specific features
+            switch (direction) {
+                case 'down':
+                    // Eyes (front-facing)
+                    frameCtx.fillStyle = peasantColors.eyes;
+                    frameCtx.fillRect(3*px, 2*px, 1*px, 1*px); // Left eye
+                    frameCtx.fillRect(5*px, 2*px, 1*px, 1*px); // Right eye
+                    // Arms (down)
+                    frameCtx.fillStyle = peasantColors.tunic;
+                    frameCtx.fillRect(1*px, 4*px, 1*px, 3*px); // Left arm
+                    frameCtx.fillRect(6*px, 4*px, 1*px, 3*px); // Right arm
+                    // Legs (front-facing)
+                    frameCtx.fillStyle = peasantColors.pants;
+                    frameCtx.fillRect(2*px, 8*px, 2*px, 2*px); // Left leg
+                    frameCtx.fillRect(4*px, 8*px, 2*px, 2*px); // Right leg
+                    break;
+                case 'up':
+                    // No eyes visible from back (or minimal indication)
+                    // Arms (slightly back)
+                    frameCtx.fillStyle = peasantColors.tunic;
+                    frameCtx.fillRect(1*px, 4*px, 1*px, 3*px);
+                    frameCtx.fillRect(6*px, 4*px, 1*px, 3*px);
+                    // Legs (back-facing)
+                    frameCtx.fillStyle = peasantColors.pants;
+                    frameCtx.fillRect(2*px, 8*px, 2*px, 2*px);
+                    frameCtx.fillRect(4*px, 8*px, 2*px, 2*px);
+                    // Maybe a line for back of tunic
+                    frameCtx.fillStyle = peasantColors.tunic; // Darker shade if available
+                    frameCtx.fillRect(2*px, 7*px, 4*px, 1*px);
+                    break;
+                case 'left':
+                    // Eye (side-facing)
+                    frameCtx.fillStyle = peasantColors.eyes;
+                    frameCtx.fillRect(2*px, 2*px, 1*px, 1*px); // Left eye
+                    // Nose indication (optional)
+                    frameCtx.fillStyle = peasantColors.skin; // slightly darker skin if available
+                    frameCtx.fillRect(1*px, 2*px, 1*px, 1*px);
+                    // Arm (one visible, one less so)
+                    frameCtx.fillStyle = peasantColors.tunic;
+                    frameCtx.fillRect(3*px, 4*px, 1*px, 3*px); // Front arm (main part)
+                    frameCtx.fillRect(2*px, 4.5*px, 1*px, 2*px); // Front arm (thicker)
+                    // Legs (side-facing)
+                    frameCtx.fillStyle = peasantColors.pants;
+                    frameCtx.fillRect(2*px, 8*px, 2*px, 2*px); // Front leg
+                    frameCtx.fillRect(4*px, 8*px, 1*px, 2*px); // Back leg (partially obscured)
+                    break;
+                case 'right':
+                    // Eye (side-facing)
+                    frameCtx.fillStyle = peasantColors.eyes;
+                    frameCtx.fillRect(5*px, 2*px, 1*px, 1*px); // Right eye
+                    // Nose indication (optional)
+                    frameCtx.fillStyle = peasantColors.skin;
+                    frameCtx.fillRect(6*px, 2*px, 1*px, 1*px);
+                    // Arm
+                    frameCtx.fillStyle = peasantColors.tunic;
+                    frameCtx.fillRect(4*px, 4*px, 1*px, 3*px); // Front arm (main part)
+                    frameCtx.fillRect(5*px, 4.5*px, 1*px, 2*px); // Front arm (thicker)
+                    // Legs
+                    frameCtx.fillStyle = peasantColors.pants;
+                    frameCtx.fillRect(4*px, 8*px, 2*px, 2*px); // Front leg
+                    frameCtx.fillRect(3*px, 8*px, 1*px, 2*px); // Back leg
+                    break;
+            }
+            return frameCanvas;
+        }
+
 
         // Camera object
         const camera = {
@@ -85,27 +205,19 @@
             w: false, a: false, s: false, d: false
         };
 
-        /**
-         * Generates the game map with more structured terrain features.
-         * Tree tiles will be generated but will act as grass.
-         */
         function generateMap() {
             gameMap = [];
-            // 1. Initialize with base terrain (e.g., grass)
             for (let r = 0; r < WORLD_ROWS; r++) {
                 gameMap[r] = [];
                 for (let c = 0; c < WORLD_COLS; c++) {
                     gameMap[r][c] = TILE_ID.GRASS;
                 }
             }
-
-            // 2. Generate a few lakes
-            const numLakes = Math.floor(Math.random() * 3) + 2; // 2 to 4 lakes
+            const numLakes = Math.floor(Math.random() * 3) + 2;
             for (let i = 0; i < numLakes; i++) {
                 const lakeCenterX = Math.floor(Math.random() * WORLD_COLS);
                 const lakeCenterY = Math.floor(Math.random() * WORLD_ROWS);
                 const lakeMaxRadius = Math.floor(Math.random() * 10) + 8;
-
                 for (let r = 0; r < WORLD_ROWS; r++) {
                     for (let c = 0; c < WORLD_COLS; c++) {
                         const distSq = (c - lakeCenterX) ** 2 + (r - lakeCenterY) ** 2;
@@ -125,8 +237,6 @@
                     }
                 }
             }
-
-            // 3. Generate patches of other terrains (dirt, stone)
             const terrainPatchTypes = [TILE_ID.DIRT, TILE_ID.STONE];
             terrainPatchTypes.forEach(patchType => {
                 const numPatches = Math.floor(Math.random() * 10) + 10;
@@ -134,7 +244,6 @@
                     let seedX = Math.floor(Math.random() * WORLD_COLS);
                     let seedY = Math.floor(Math.random() * WORLD_ROWS);
                     const patchSize = Math.floor(Math.random() * 150) + 50;
-
                     for (let j = 0; j < patchSize; j++) {
                         if (seedX >= 0 && seedX < WORLD_COLS && seedY >= 0 && seedY < WORLD_ROWS) {
                             if (gameMap[seedY][seedX] !== TILE_ID.WATER && gameMap[seedY][seedX] !== TILE_ID.SAND) {
@@ -149,8 +258,6 @@
                     }
                 }
             });
-
-            // 4. Place "Tree-Grass" tiles (formerly trees)
             for (let r = 0; r < WORLD_ROWS; r++) {
                 for (let c = 0; c < WORLD_COLS; c++) {
                     if ((gameMap[r][c] === TILE_ID.GRASS || gameMap[r][c] === TILE_ID.DIRT)) {
@@ -161,13 +268,11 @@
                                 const nc = c + dc;
                                 if (nr >= 0 && nr < WORLD_ROWS && nc >= 0 && nc < WORLD_COLS &&
                                     (gameMap[nr][nc] === TILE_ID.WATER || gameMap[nr][nc] === TILE_ID.SAND)) {
-                                    nearWaterOrSand = true;
-                                    break;
+                                    nearWaterOrSand = true; break;
                                 }
                             }
                             if(nearWaterOrSand) break;
                         }
-                        // The TILE_ID.TREE will now render as grass and be walkable
                         if (!nearWaterOrSand && Math.random() < 0.08) {
                             gameMap[r][c] = TILE_ID.TREE;
                         }
@@ -176,15 +281,10 @@
             }
         }
 
-
-        /**
-         * Ensures the player's starting position and a small surrounding area are walkable.
-         */
         function securePlayerStart() {
             let startTileCol, startTileRow;
             let attempts = 0;
             const maxAttempts = 100;
-
             do {
                 player.x = Math.floor(Math.random() * (worldWidth - player.width));
                 player.y = Math.floor(Math.random() * (worldHeight - player.height));
@@ -194,17 +294,15 @@
             } while (
                 attempts < maxAttempts &&
                 (startTileRow < 0 || startTileRow >= WORLD_ROWS || startTileCol < 0 || startTileCol >= WORLD_COLS ||
-                 !gameMap[startTileRow] || gameMap[startTileRow][startTileCol] === undefined || // Check if tile exists
+                 !gameMap[startTileRow] || gameMap[startTileRow][startTileCol] === undefined ||
                  !tileTypes[gameMap[startTileRow][startTileCol]].walkable)
             );
-
             if (attempts >= maxAttempts) {
                 player.x = (worldWidth - player.width) / 2;
                 player.y = (worldHeight - player.height) / 2;
                 startTileCol = Math.floor(player.x / TILE_SIZE);
                 startTileRow = Math.floor(player.y / TILE_SIZE);
             }
-
             for (let rOffset = -1; rOffset <= 1; rOffset++) {
                 for (let cOffset = -1; cOffset <= 1; cOffset++) {
                     const r = startTileRow + rOffset;
@@ -222,10 +320,6 @@
             }
         }
 
-
-        /**
-         * Handles keydown events.
-         */
         function keyDownHandler(event) {
             const key = event.key.toLowerCase();
             if (event.key in keysPressed) keysPressed[event.key] = true;
@@ -236,18 +330,12 @@
             }
         }
 
-        /**
-         * Handles keyup events.
-         */
         function keyUpHandler(event) {
             const key = event.key.toLowerCase();
             if (event.key in keysPressed) keysPressed[event.key] = false;
             else if (key in keysPressed) keysPressed[key] = false;
         }
 
-        /**
-         * Checks if the player would collide with non-walkable tiles at the target position.
-         */
         function checkCollision(targetX, targetY) {
             const collisionPoints = [
                 { x: targetX, y: targetY },
@@ -255,34 +343,42 @@
                 { x: targetX, y: targetY + player.height - 1 },
                 { x: targetX + player.width - 1, y: targetY + player.height - 1 }
             ];
-
             for (const point of collisionPoints) {
                 const tileCol = Math.floor(point.x / TILE_SIZE);
                 const tileRow = Math.floor(point.y / TILE_SIZE);
-
-                if (tileRow < 0 || tileRow >= WORLD_ROWS || tileCol < 0 || tileCol >= WORLD_COLS) {
-                    return true; // Collision with world edge
-                }
+                if (tileRow < 0 || tileRow >= WORLD_ROWS || tileCol < 0 || tileCol >= WORLD_COLS) return true;
                 const tileId = gameMap[tileRow][tileCol];
-                // Check if tile is undefined or not walkable
-                if (tileId === undefined || !tileTypes[tileId] || !tileTypes[tileId].walkable) {
-                    return true;
-                }
+                if (tileId === undefined || !tileTypes[tileId] || !tileTypes[tileId].walkable) return true;
             }
-            return false; // No collision
+            return false;
         }
 
         /**
-         * Updates player position based on input, handling collisions.
+         * Updates player position and facing direction.
          */
         function updatePlayerPosition() {
             let intendedDx = 0;
             let intendedDy = 0;
 
-            if (keysPressed.ArrowUp || keysPressed.w) intendedDy -= player.speed;
-            if (keysPressed.ArrowDown || keysPressed.s) intendedDy += player.speed;
-            if (keysPressed.ArrowLeft || keysPressed.a) intendedDx -= player.speed;
-            if (keysPressed.ArrowRight || keysPressed.d) intendedDx += player.speed;
+            if (keysPressed.ArrowUp || keysPressed.w) {
+                intendedDy -= player.speed;
+                player.facing = 'up';
+            }
+            if (keysPressed.ArrowDown || keysPressed.s) {
+                intendedDy += player.speed;
+                player.facing = 'down';
+            }
+            if (keysPressed.ArrowLeft || keysPressed.a) {
+                intendedDx -= player.speed;
+                player.facing = 'left';
+            }
+            if (keysPressed.ArrowRight || keysPressed.d) {
+                intendedDx += player.speed;
+                player.facing = 'right';
+            }
+
+            // Prioritize last pressed direction for facing if multiple keys are held
+            // (More complex logic could be added here if needed for diagonal facing, etc.)
 
             if (intendedDx !== 0) {
                 if (!checkCollision(player.x + intendedDx, player.y)) {
@@ -299,10 +395,6 @@
             player.y = Math.max(0, Math.min(player.y, worldHeight - player.height));
         }
 
-
-        /**
-         * Updates camera position to follow the player.
-         */
         function updateCameraPosition() {
             camera.x = player.x + player.width / 2 - camera.width / 2;
             camera.y = player.y + player.height / 2 - camera.height / 2;
@@ -310,9 +402,6 @@
             camera.y = Math.max(0, Math.min(camera.y, worldHeight - camera.height));
         }
 
-        /**
-         * Draws the visible portion of the map.
-         */
         function drawMap() {
             const startCol = Math.max(0, Math.floor(camera.x / TILE_SIZE));
             const endCol = Math.min(WORLD_COLS - 1, Math.floor((camera.x + camera.width) / TILE_SIZE) +1);
@@ -321,39 +410,57 @@
 
             for (let r = startRow; r <= endRow; r++) {
                 for (let c = startCol; c <= endCol; c++) {
-                    // Boundary checks already handled by loop conditions, but an extra guard for safety.
                     if (r < 0 || r >= WORLD_ROWS || c < 0 || c >= WORLD_COLS) continue;
-
                     const tileId = gameMap[r][c];
                     const tile = tileTypes[tileId];
-                    if (!tile) continue; // Safety for undefined tile type
-
+                    if (!tile) continue;
                     const tileWorldX = c * TILE_SIZE;
                     const tileWorldY = r * TILE_SIZE;
-
                     ctx.fillStyle = tile.color;
                     ctx.fillRect(Math.floor(tileWorldX - camera.x), Math.floor(tileWorldY - camera.y), TILE_SIZE, TILE_SIZE);
-
-                    // Removed special drawing logic for TILE_ID.TREE
-                    // They will now be rendered using their base color, which is set to grass color.
                 }
             }
         }
 
         /**
-         * Draws the player.
+         * Draws the player sprite based on their facing direction.
          */
         function drawPlayer() {
-            ctx.fillStyle = player.color;
-            ctx.fillRect(Math.floor(player.x - camera.x), Math.floor(player.y - camera.y), player.width, player.height);
-            ctx.strokeStyle = 'black';
-            ctx.lineWidth = 1.5;
-            ctx.strokeRect(Math.floor(player.x - camera.x), Math.floor(player.y - camera.y), player.width, player.height);
+            if (!player.spriteSheet) return; // Don't draw if sprites aren't loaded
+
+            const currentSpriteFrame = player.spriteSheet[player.facing];
+            if (!currentSpriteFrame) { // Fallback if a direction is missing (should not happen)
+                console.error("Missing sprite for direction: ", player.facing);
+                // Draw a placeholder if sprite is missing
+                ctx.fillStyle = 'magenta'; // Bright color to indicate error
+                ctx.fillRect(
+                    Math.floor(player.x - camera.x + (player.width - player.spriteFrameWidth) / 2),
+                    Math.floor(player.y - camera.y + (player.height - player.spriteFrameHeight) / 2),
+                    player.spriteFrameWidth,
+                    player.spriteFrameHeight
+                );
+                return;
+            }
+
+            // Calculate top-left corner for drawing the sprite to center it over the player's logical hitbox
+            // The sprite can be visually larger than the hitbox.
+            const drawX = player.x - camera.x - (player.spriteFrameWidth - player.width) / 2;
+            const drawY = player.y - camera.y - (player.spriteFrameHeight - player.height) / 2;
+
+            ctx.imageSmoothingEnabled = false; // For crisp pixel art
+            ctx.drawImage(
+                currentSpriteFrame,
+                Math.floor(drawX),
+                Math.floor(drawY)
+            );
+
+            // Optional: Draw hitbox for debugging
+            // ctx.strokeStyle = 'red';
+            // ctx.lineWidth = 1;
+            // ctx.strokeRect(Math.floor(player.x - camera.x), Math.floor(player.y - camera.y), player.width, player.height);
         }
 
-        /**
-         * Main game loop.
-         */
+
         function gameLoop() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             updatePlayerPosition();
@@ -363,32 +470,24 @@
             requestAnimationFrame(gameLoop);
         }
 
-        /**
-         * Resizes canvas and updates camera.
-         */
         function resizeCanvas() {
             const aspectRatio = 16 / 9;
             let newWidth = window.innerWidth * 0.85;
             let newHeight = window.innerHeight * 0.85;
-
             if (newWidth / newHeight > aspectRatio) newWidth = newHeight * aspectRatio;
             else newHeight = newWidth / aspectRatio;
-
             canvas.width = Math.floor(newWidth);
             canvas.height = Math.floor(newHeight);
             camera.width = canvas.width;
             camera.height = canvas.height;
-
             updateCameraPosition();
         }
 
-        /**
-         * Initialization function.
-         */
         function init() {
             document.addEventListener('keydown', keyDownHandler);
             document.addEventListener('keyup', keyUpHandler);
 
+            createPlayerSpriteSheet(); // Create the player sprites before game starts
             generateMap();
             securePlayerStart();
             resizeCanvas();
