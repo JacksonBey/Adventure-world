@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Terrain Variety and Collision</title>
+    <title>Larger, Varied World with Terrain Features</title>
     <style>
         body {
             margin: 0;
@@ -12,14 +12,14 @@
             justify-content: center;
             align-items: center;
             min-height: 100vh;
-            background-color: #2c2c2c;
+            background-color: #1e1e1e; /* Darker background for better game focus */
             font-family: 'Arial', sans-serif;
         }
         canvas {
-            border: 3px solid #666;
+            border: 3px solid #555; /* Slightly lighter border for contrast */
             background-color: #000; /* Fallback background, map should cover it */
             display: block;
-            box-shadow: 0 0 15px rgba(0,0,0,0.7);
+            box-shadow: 0 0 20px rgba(0,0,0,0.8); /* More pronounced shadow */
         }
     </style>
 </head>
@@ -33,8 +33,8 @@
 
         // Tile and World properties
         const TILE_SIZE = 40;
-        const WORLD_COLS = 60; // Number of tile columns
-        const WORLD_ROWS = 40; // Number of tile rows
+        const WORLD_COLS = 120; // Significantly larger world
+        const WORLD_ROWS = 80;  // Significantly larger world
         const worldWidth = WORLD_COLS * TILE_SIZE;
         const worldHeight = WORLD_ROWS * TILE_SIZE;
 
@@ -44,7 +44,8 @@
             WATER: 1,
             STONE: 2,
             DIRT:  3,
-            TREE:  4
+            TREE:  4,
+            SAND:  5 // New tile type for beaches
         };
 
         // Tile type definitions (color, walkability)
@@ -53,7 +54,8 @@
             [TILE_ID.WATER]: { name: 'water', color: '#4a90e2', walkable: false },
             [TILE_ID.STONE]: { name: 'stone', color: '#9b9b9b', walkable: true },
             [TILE_ID.DIRT]:  { name: 'dirt',  color: '#8b5a2b', walkable: true },
-            [TILE_ID.TREE]:  { name: 'tree',  color: '#38761d', walkable: false, isObstacle: true } // Darker green for base tree color
+            [TILE_ID.TREE]:  { name: 'tree',  color: '#38761d', walkable: false, isObstacle: true },
+            [TILE_ID.SAND]:  { name: 'sand',  color: '#f4a460', walkable: true } // Sandy color
         };
 
         // Game map data (2D array of tile IDs)
@@ -63,17 +65,17 @@
         const player = {
             x: worldWidth / 2,
             y: worldHeight / 2,
-            width: 28, // Slightly smaller for easier navigation between tiles
+            width: 28,
             height: 28,
             color: '#ff8c00', // DarkOrange
-            speed: 3.5
+            speed: 3.8 // Slightly increased speed for larger world
         };
 
         // Camera object
         const camera = {
             x: 0, y: 0,
-            width: canvas.width,
-            height: canvas.height
+            width: canvas.width, // Will be set in resizeCanvas
+            height: canvas.height // Will be set in resizeCanvas
         };
 
         // Key tracking
@@ -83,55 +85,147 @@
         };
 
         /**
-         * Generates the game map with varied terrain.
-         * Ensures the player's starting area is walkable.
+         * Generates the game map with more structured terrain features.
          */
         function generateMap() {
             gameMap = [];
+            // 1. Initialize with base terrain (e.g., grass)
             for (let r = 0; r < WORLD_ROWS; r++) {
                 gameMap[r] = [];
                 for (let c = 0; c < WORLD_COLS; c++) {
-                    // Basic procedural generation
-                    const randomVal = Math.random();
-                    if (randomVal < 0.05) { // 5% chance of water
-                        gameMap[r][c] = TILE_ID.WATER;
-                    } else if (randomVal < 0.15) { // 10% chance of stone (0.05 to 0.15)
-                        gameMap[r][c] = TILE_ID.STONE;
-                    } else if (randomVal < 0.20) { // 5% chance of tree (0.15 to 0.20)
-                        gameMap[r][c] = TILE_ID.TREE;
-                    } else if (randomVal < 0.35) { // 15% chance of dirt (0.20 to 0.35)
-                        gameMap[r][c] = TILE_ID.DIRT;
+                    gameMap[r][c] = TILE_ID.GRASS;
+                }
+            }
+
+            // 2. Generate a few lakes
+            const numLakes = Math.floor(Math.random() * 3) + 2; // 2 to 4 lakes
+            for (let i = 0; i < numLakes; i++) {
+                const lakeCenterX = Math.floor(Math.random() * WORLD_COLS);
+                const lakeCenterY = Math.floor(Math.random() * WORLD_ROWS);
+                const lakeMaxRadius = Math.floor(Math.random() * 10) + 8; // Radius between 8 and 17 tiles
+
+                for (let r = 0; r < WORLD_ROWS; r++) {
+                    for (let c = 0; c < WORLD_COLS; c++) {
+                        const distSq = (c - lakeCenterX) ** 2 + (r - lakeCenterY) ** 2;
+                        // Create irregular lake shapes
+                        if (distSq < (lakeMaxRadius - Math.random() * (lakeMaxRadius/2)) ** 2) {
+                            gameMap[r][c] = TILE_ID.WATER;
+                            // Add sand around water
+                            for (let dr = -2; dr <= 2; dr++) {
+                                for (let dc = -2; dc <= 2; dc++) {
+                                    if (Math.abs(dr) + Math.abs(dc) > 3) continue; // Skip corners of 2-tile radius
+                                    const nr = r + dr;
+                                    const nc = c + dc;
+                                    if (nr >= 0 && nr < WORLD_ROWS && nc >= 0 && nc < WORLD_COLS && gameMap[nr][nc] !== TILE_ID.WATER) {
+                                        if (Math.random() < 0.6) gameMap[nr][nc] = TILE_ID.SAND;
+                                    }
+                                }
+                            }
+                        }
                     }
-                    else { // Remaining 65% is grass
-                        gameMap[r][c] = TILE_ID.GRASS;
+                }
+            }
+
+            // 3. Generate patches of other terrains (dirt, stone) using a simple clustering
+            const terrainPatchTypes = [TILE_ID.DIRT, TILE_ID.STONE];
+            terrainPatchTypes.forEach(patchType => {
+                const numPatches = Math.floor(Math.random() * 10) + 10; // 10-19 patches
+                for (let i = 0; i < numPatches; i++) {
+                    let seedX = Math.floor(Math.random() * WORLD_COLS);
+                    let seedY = Math.floor(Math.random() * WORLD_ROWS);
+                    const patchSize = Math.floor(Math.random() * 150) + 50; // 50-199 tiles in patch
+
+                    for (let j = 0; j < patchSize; j++) {
+                        if (seedX >= 0 && seedX < WORLD_COLS && seedY >= 0 && seedY < WORLD_ROWS) {
+                            if (gameMap[seedY][seedX] !== TILE_ID.WATER && gameMap[seedY][seedX] !== TILE_ID.SAND) { // Don't overwrite water/sand
+                                gameMap[seedY][seedX] = patchType;
+                            }
+                        }
+                        // Random walk to grow patch
+                        const move = Math.floor(Math.random() * 4);
+                        if (move === 0) seedX++; else if (move === 1) seedX--;
+                        else if (move === 2) seedY++; else seedY--;
+                         // Keep within bounds slightly more aggressively to prevent long strands
+                        seedX = Math.max(0, Math.min(WORLD_COLS - 1, seedX));
+                        seedY = Math.max(0, Math.min(WORLD_ROWS - 1, seedY));
+                    }
+                }
+            });
+
+            // 4. Place Trees
+            for (let r = 0; r < WORLD_ROWS; r++) {
+                for (let c = 0; c < WORLD_COLS; c++) {
+                    // Place trees on grass or dirt, avoid placing too close to water/sand
+                    if ((gameMap[r][c] === TILE_ID.GRASS || gameMap[r][c] === TILE_ID.DIRT)) {
+                        let nearWaterOrSand = false;
+                        for(let dr = -1; dr <=1; dr++){
+                            for(let dc = -1; dc <=1; dc++){
+                                const nr = r + dr;
+                                const nc = c + dc;
+                                if (nr >= 0 && nr < WORLD_ROWS && nc >= 0 && nc < WORLD_COLS &&
+                                    (gameMap[nr][nc] === TILE_ID.WATER || gameMap[nr][nc] === TILE_ID.SAND)) {
+                                    nearWaterOrSand = true;
+                                    break;
+                                }
+                            }
+                            if(nearWaterOrSand) break;
+                        }
+
+                        if (!nearWaterOrSand && Math.random() < 0.08) { // 8% chance for a tree
+                            gameMap[r][c] = TILE_ID.TREE;
+                        }
                     }
                 }
             }
         }
 
+
         /**
          * Ensures the player's starting position and a small surrounding area are walkable.
-         * Call this *after* initial player position is set and map is generated.
          */
         function securePlayerStart() {
-            const startTileCol = Math.floor(player.x / TILE_SIZE);
-            const startTileRow = Math.floor(player.y / TILE_SIZE);
+            let startTileCol, startTileRow;
+            let attempts = 0;
+            const maxAttempts = 100; // Prevent infinite loop if map is somehow unstartable
 
+            // Try to find a walkable starting spot
+            do {
+                player.x = Math.floor(Math.random() * (worldWidth - player.width));
+                player.y = Math.floor(Math.random() * (worldHeight - player.height));
+                startTileCol = Math.floor(player.x / TILE_SIZE);
+                startTileRow = Math.floor(player.y / TILE_SIZE);
+                attempts++;
+            } while (
+                attempts < maxAttempts &&
+                (startTileRow < 0 || startTileRow >= WORLD_ROWS || startTileCol < 0 || startTileCol >= WORLD_COLS ||
+                !tileTypes[gameMap[startTileRow][startTileCol]].walkable)
+            );
+
+            // If no good spot found after many attempts, default to world center and clear it
+            if (attempts >= maxAttempts) {
+                player.x = (worldWidth - player.width) / 2;
+                player.y = (worldHeight - player.height) / 2;
+                startTileCol = Math.floor(player.x / TILE_SIZE);
+                startTileRow = Math.floor(player.y / TILE_SIZE);
+            }
+
+
+            // Clear a 3x3 area around the chosen start point
             for (let rOffset = -1; rOffset <= 1; rOffset++) {
                 for (let cOffset = -1; cOffset <= 1; cOffset++) {
                     const r = startTileRow + rOffset;
                     const c = startTileCol + cOffset;
                     if (r >= 0 && r < WORLD_ROWS && c >= 0 && c < WORLD_COLS) {
-                         // Ensure the direct vicinity is at least grass if it was non-walkable
                         if (!tileTypes[gameMap[r][c]].walkable) {
-                            gameMap[r][c] = TILE_ID.GRASS;
+                            gameMap[r][c] = TILE_ID.GRASS; // Make it grass
                         }
                     }
                 }
             }
-             // Explicitly set player's exact starting tile to grass
-            if (gameMap[startTileRow] && gameMap[startTileRow][startTileCol] !== undefined) {
-                 gameMap[startTileRow][startTileCol] = TILE_ID.GRASS;
+            // Ensure the exact spawn tile is walkable
+             if (gameMap[startTileRow] && gameMap[startTileRow][startTileCol] !== undefined &&
+                 !tileTypes[gameMap[startTileRow][startTileCol]].walkable) {
+                gameMap[startTileRow][startTileCol] = TILE_ID.GRASS;
             }
         }
 
@@ -160,36 +254,28 @@
 
         /**
          * Checks if the player would collide with non-walkable tiles at the target position.
-         * @param {number} targetX - The intended new X coordinate of the player.
-         * @param {number} targetY - The intended new Y coordinate of the player.
-         * @returns {boolean} True if collision occurs, false otherwise.
          */
         function checkCollision(targetX, targetY) {
-            // Define points around the player's bounding box to check for collision
-            // These points cover the corners of the player's hitbox.
             const collisionPoints = [
-                { x: targetX, y: targetY },                                // Top-left
-                { x: targetX + player.width - 1, y: targetY },             // Top-right
-                { x: targetX, y: targetY + player.height - 1 },            // Bottom-left
-                { x: targetX + player.width - 1, y: targetY + player.height - 1 } // Bottom-right
+                { x: targetX, y: targetY },
+                { x: targetX + player.width - 1, y: targetY },
+                { x: targetX, y: targetY + player.height - 1 },
+                { x: targetX + player.width - 1, y: targetY + player.height - 1 }
             ];
 
             for (const point of collisionPoints) {
                 const tileCol = Math.floor(point.x / TILE_SIZE);
                 const tileRow = Math.floor(point.y / TILE_SIZE);
 
-                // Check if point is outside world boundaries (treat as collision)
                 if (tileRow < 0 || tileRow >= WORLD_ROWS || tileCol < 0 || tileCol >= WORLD_COLS) {
-                    return true; // Collision with world edge
+                    return true;
                 }
-
                 const tileId = gameMap[tileRow][tileCol];
-                // Check if tile is undefined (should not happen if map is correct) or not walkable
                 if (tileId === undefined || !tileTypes[tileId] || !tileTypes[tileId].walkable) {
-                    return true; // Collision with non-walkable tile
+                    return true;
                 }
             }
-            return false; // No collision
+            return false;
         }
 
         /**
@@ -204,22 +290,17 @@
             if (keysPressed.ArrowLeft || keysPressed.a) intendedDx -= player.speed;
             if (keysPressed.ArrowRight || keysPressed.d) intendedDx += player.speed;
 
-            // Check horizontal movement
             if (intendedDx !== 0) {
                 if (!checkCollision(player.x + intendedDx, player.y)) {
                     player.x += intendedDx;
                 }
             }
-
-            // Check vertical movement
             if (intendedDy !== 0) {
-                // Use the potentially updated player.x for vertical collision check
                 if (!checkCollision(player.x, player.y + intendedDy)) {
                     player.y += intendedDy;
                 }
             }
 
-            // Ensure player stays within world boundaries (final clamp)
             player.x = Math.max(0, Math.min(player.x, worldWidth - player.width));
             player.y = Math.max(0, Math.min(player.y, worldHeight - player.height));
         }
@@ -231,8 +312,6 @@
         function updateCameraPosition() {
             camera.x = player.x + player.width / 2 - camera.width / 2;
             camera.y = player.y + player.height / 2 - camera.height / 2;
-
-            // Clamp camera to world boundaries
             camera.x = Math.max(0, Math.min(camera.x, worldWidth - camera.width));
             camera.y = Math.max(0, Math.min(camera.y, worldHeight - camera.height));
         }
@@ -242,51 +321,54 @@
          */
         function drawMap() {
             const startCol = Math.max(0, Math.floor(camera.x / TILE_SIZE));
-            const endCol = Math.min(WORLD_COLS - 1, Math.floor((camera.x + camera.width) / TILE_SIZE));
+            const endCol = Math.min(WORLD_COLS - 1, Math.floor((camera.x + camera.width) / TILE_SIZE) +1); // +1 to prevent edge pop-in
             const startRow = Math.max(0, Math.floor(camera.y / TILE_SIZE));
-            const endRow = Math.min(WORLD_ROWS - 1, Math.floor((camera.y + camera.height) / TILE_SIZE));
+            const endRow = Math.min(WORLD_ROWS - 1, Math.floor((camera.y + camera.height) / TILE_SIZE) +1); // +1
 
             for (let r = startRow; r <= endRow; r++) {
                 for (let c = startCol; c <= endCol; c++) {
+                    if (r < 0 || r >= WORLD_ROWS || c < 0 || c >= WORLD_COLS) continue; // Should be redundant but safe
+
                     const tileId = gameMap[r][c];
                     const tile = tileTypes[tileId];
+                    if (!tile) continue; // Safety check for undefined tile types
+
                     const tileWorldX = c * TILE_SIZE;
                     const tileWorldY = r * TILE_SIZE;
 
-                    // Draw tile base color
                     ctx.fillStyle = tile.color;
-                    ctx.fillRect(tileWorldX - camera.x, tileWorldY - camera.y, TILE_SIZE, TILE_SIZE);
+                    ctx.fillRect(Math.floor(tileWorldX - camera.x), Math.floor(tileWorldY - camera.y), TILE_SIZE, TILE_SIZE);
 
-                    // Add detail for specific tiles like trees
                     if (tile.isObstacle && tileId === TILE_ID.TREE) {
-                        ctx.fillStyle = '#275218'; // Darker green for tree "trunk/detail"
-                        const detailSize = TILE_SIZE * 0.5;
-                        const detailOffset = (TILE_SIZE - detailSize) / 2;
-                        ctx.fillRect(
-                            tileWorldX - camera.x + detailOffset,
-                            tileWorldY - camera.y + detailOffset,
-                            detailSize,
-                            detailSize
-                        );
-                         // Add a small highlight or different shade for canopy
-                        ctx.fillStyle = '#558B2F'; // Lighter green for canopy top
-                        const canopySize = TILE_SIZE * 0.8;
-                        const canopyOffset = (TILE_SIZE - canopySize) / 2;
-                         ctx.fillRect(
-                            tileWorldX - camera.x + canopyOffset,
-                            tileWorldY - camera.y + canopyOffset,
-                            canopySize,
-                            canopySize * 0.6 // Make canopy slightly shorter
-                        );
-                        // Re-apply trunk color on top for layering effect
-                         ctx.fillStyle = '#275218';
-                         ctx.fillRect(
-                            tileWorldX - camera.x + detailOffset,
-                            tileWorldY - camera.y + detailOffset + TILE_SIZE * 0.2, // Shift trunk down a bit
-                            detailSize,
-                            detailSize * 1.5 // Make trunk taller
-                        );
+                        // Simplified tree rendering for now, can be expanded
+                        const trunkColor = '#5D4037'; // Brown for trunk
+                        const canopyColor = '#38761d'; // Original tree color for canopy
 
+                        const trunkWidth = TILE_SIZE * 0.25;
+                        const trunkHeight = TILE_SIZE * 0.5;
+                        const trunkX = tileWorldX - camera.x + (TILE_SIZE - trunkWidth) / 2;
+                        const trunkY = tileWorldY - camera.y + TILE_SIZE * 0.5;
+
+                        const canopyRadius = TILE_SIZE * 0.4;
+                        const canopyX = tileWorldX - camera.x + TILE_SIZE / 2;
+                        const canopyY = tileWorldY - camera.y + TILE_SIZE * 0.35;
+
+
+                        // Draw Canopy
+                        ctx.fillStyle = canopyColor;
+                        ctx.beginPath();
+                        ctx.arc(canopyX, canopyY, canopyRadius, 0, Math.PI * 2);
+                        ctx.fill();
+                         // Draw a slightly darker shade for depth
+                        ctx.fillStyle = '#275218';
+                        ctx.beginPath();
+                        ctx.arc(canopyX + canopyRadius*0.2, canopyY + canopyRadius*0.2, canopyRadius*0.8, 0, Math.PI * 2);
+                        ctx.fill();
+
+
+                        // Draw Trunk
+                        ctx.fillStyle = trunkColor;
+                        ctx.fillRect(trunkX, trunkY, trunkWidth, trunkHeight);
                     }
                 }
             }
@@ -297,10 +379,10 @@
          */
         function drawPlayer() {
             ctx.fillStyle = player.color;
-            ctx.fillRect(player.x - camera.x, player.y - camera.y, player.width, player.height);
+            ctx.fillRect(Math.floor(player.x - camera.x), Math.floor(player.y - camera.y), player.width, player.height);
             ctx.strokeStyle = 'black';
             ctx.lineWidth = 1.5;
-            ctx.strokeRect(player.x - camera.x, player.y - camera.y, player.width, player.height);
+            ctx.strokeRect(Math.floor(player.x - camera.x), Math.floor(player.y - camera.y), player.width, player.height);
         }
 
         /**
@@ -320,18 +402,18 @@
          */
         function resizeCanvas() {
             const aspectRatio = 16 / 9;
-            let newWidth = window.innerWidth * 0.75;
-            let newHeight = window.innerHeight * 0.75;
+            let newWidth = window.innerWidth * 0.85; // Slightly larger canvas view
+            let newHeight = window.innerHeight * 0.85;
 
             if (newWidth / newHeight > aspectRatio) newWidth = newHeight * aspectRatio;
             else newHeight = newWidth / aspectRatio;
 
-            canvas.width = newWidth;
-            canvas.height = newHeight;
+            canvas.width = Math.floor(newWidth); // Use Math.floor for pixel-perfect rendering
+            canvas.height = Math.floor(newHeight);
             camera.width = canvas.width;
             camera.height = canvas.height;
 
-            updateCameraPosition(); // Ensure camera is updated after resize
+            updateCameraPosition();
         }
 
         /**
@@ -341,18 +423,12 @@
             document.addEventListener('keydown', keyDownHandler);
             document.addEventListener('keyup', keyUpHandler);
 
-            generateMap(); // 1. Create the world map data
-
-            // 2. Set initial player position (e.g., center of the world)
-            player.x = (worldWidth - player.width) / 2;
-            player.y = (worldHeight - player.height) / 2;
-
-            securePlayerStart(); // 3. Ensure player's start is walkable
-
-            resizeCanvas(); // 4. Set canvas/camera size, which also calls updateCameraPosition
+            generateMap();       // 1. Create the world map data
+            securePlayerStart(); // 2. Ensure player's start is walkable (finds a random spot now)
+            resizeCanvas();      // 3. Set canvas/camera size, which also calls updateCameraPosition
 
             window.addEventListener('resize', resizeCanvas);
-            gameLoop(); // 5. Start the game
+            gameLoop();          // 4. Start the game
         }
 
         window.onload = init;
