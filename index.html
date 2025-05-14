@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Scrolling Camera and Larger World</title>
+    <title>Terrain Variety and Collision</title>
     <style>
         body {
             margin: 0;
@@ -12,12 +12,12 @@
             justify-content: center;
             align-items: center;
             min-height: 100vh;
-            background-color: #2c2c2c; /* Even darker background */
+            background-color: #2c2c2c;
             font-family: 'Arial', sans-serif;
         }
         canvas {
-            border: 3px solid #666; /* Thicker, more prominent border */
-            background-color: #000; /* Black background for canvas before map draws */
+            border: 3px solid #666;
+            background-color: #000; /* Fallback background, map should cover it */
             display: block;
             box-shadow: 0 0 15px rgba(0,0,0,0.7);
         }
@@ -27,47 +27,117 @@
     <canvas id="gameCanvas"></canvas>
 
     <script>
-        // Get the canvas element and 2D rendering context
+        // Canvas and context
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
 
-        // World and Tile properties
+        // Tile and World properties
         const TILE_SIZE = 40;
-        const TILE_COLOR_LIGHT = '#7db860'; // Slightly brighter light green
-        const TILE_COLOR_DARK = '#6ca050';  // Slightly brighter dark green
-        const WORLD_COLS = 60; // Number of tile columns in the world
-        const WORLD_ROWS = 40; // Number of tile rows in the world
+        const WORLD_COLS = 60; // Number of tile columns
+        const WORLD_ROWS = 40; // Number of tile rows
         const worldWidth = WORLD_COLS * TILE_SIZE;
         const worldHeight = WORLD_ROWS * TILE_SIZE;
 
+        // Tile type IDs
+        const TILE_ID = {
+            GRASS: 0,
+            WATER: 1,
+            STONE: 2,
+            DIRT:  3,
+            TREE:  4
+        };
+
+        // Tile type definitions (color, walkability)
+        const tileTypes = {
+            [TILE_ID.GRASS]: { name: 'grass', color: '#7db860', walkable: true },
+            [TILE_ID.WATER]: { name: 'water', color: '#4a90e2', walkable: false },
+            [TILE_ID.STONE]: { name: 'stone', color: '#9b9b9b', walkable: true },
+            [TILE_ID.DIRT]:  { name: 'dirt',  color: '#8b5a2b', walkable: true },
+            [TILE_ID.TREE]:  { name: 'tree',  color: '#38761d', walkable: false, isObstacle: true } // Darker green for base tree color
+        };
+
+        // Game map data (2D array of tile IDs)
+        let gameMap = [];
+
         // Player properties
         const player = {
-            x: worldWidth / 2,  // Initial x position in world coordinates
-            y: worldHeight / 2, // Initial y position in world coordinates
-            width: 30,
-            height: 30,
+            x: worldWidth / 2,
+            y: worldHeight / 2,
+            width: 28, // Slightly smaller for easier navigation between tiles
+            height: 28,
             color: '#ff8c00', // DarkOrange
-            speed: 4,
-            // No initialPositionSet needed anymore as position is absolute in the world
+            speed: 3.5
         };
 
-        // Camera object to manage the viewport
+        // Camera object
         const camera = {
-            x: 0, // Top-left x-coordinate of the camera in world space
-            y: 0, // Top-left y-coordinate of the camera in world space
-            width: canvas.width,  // These will be updated by resizeCanvas
-            height: canvas.height // These will be updated by resizeCanvas
+            x: 0, y: 0,
+            width: canvas.width,
+            height: canvas.height
         };
 
-        // Key tracking object
+        // Key tracking
         const keysPressed = {
             ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false,
             w: false, a: false, s: false, d: false
         };
 
         /**
+         * Generates the game map with varied terrain.
+         * Ensures the player's starting area is walkable.
+         */
+        function generateMap() {
+            gameMap = [];
+            for (let r = 0; r < WORLD_ROWS; r++) {
+                gameMap[r] = [];
+                for (let c = 0; c < WORLD_COLS; c++) {
+                    // Basic procedural generation
+                    const randomVal = Math.random();
+                    if (randomVal < 0.05) { // 5% chance of water
+                        gameMap[r][c] = TILE_ID.WATER;
+                    } else if (randomVal < 0.15) { // 10% chance of stone (0.05 to 0.15)
+                        gameMap[r][c] = TILE_ID.STONE;
+                    } else if (randomVal < 0.20) { // 5% chance of tree (0.15 to 0.20)
+                        gameMap[r][c] = TILE_ID.TREE;
+                    } else if (randomVal < 0.35) { // 15% chance of dirt (0.20 to 0.35)
+                        gameMap[r][c] = TILE_ID.DIRT;
+                    }
+                    else { // Remaining 65% is grass
+                        gameMap[r][c] = TILE_ID.GRASS;
+                    }
+                }
+            }
+        }
+
+        /**
+         * Ensures the player's starting position and a small surrounding area are walkable.
+         * Call this *after* initial player position is set and map is generated.
+         */
+        function securePlayerStart() {
+            const startTileCol = Math.floor(player.x / TILE_SIZE);
+            const startTileRow = Math.floor(player.y / TILE_SIZE);
+
+            for (let rOffset = -1; rOffset <= 1; rOffset++) {
+                for (let cOffset = -1; cOffset <= 1; cOffset++) {
+                    const r = startTileRow + rOffset;
+                    const c = startTileCol + cOffset;
+                    if (r >= 0 && r < WORLD_ROWS && c >= 0 && c < WORLD_COLS) {
+                         // Ensure the direct vicinity is at least grass if it was non-walkable
+                        if (!tileTypes[gameMap[r][c]].walkable) {
+                            gameMap[r][c] = TILE_ID.GRASS;
+                        }
+                    }
+                }
+            }
+             // Explicitly set player's exact starting tile to grass
+            if (gameMap[startTileRow] && gameMap[startTileRow][startTileCol] !== undefined) {
+                 gameMap[startTileRow][startTileCol] = TILE_ID.GRASS;
+            }
+        }
+
+
+        /**
          * Handles keydown events.
-         * @param {KeyboardEvent} event - The keyboard event.
          */
         function keyDownHandler(event) {
             const key = event.key.toLowerCase();
@@ -75,13 +145,12 @@
             else if (key in keysPressed) keysPressed[key] = true;
             if (keysPressed.ArrowUp || keysPressed.ArrowDown || keysPressed.ArrowLeft || keysPressed.ArrowRight ||
                 keysPressed.w || keysPressed.a || keysPressed.s || keysPressed.d) {
-                event.preventDefault(); // Prevent scrolling only if a movement key is pressed
+                event.preventDefault();
             }
         }
 
         /**
          * Handles keyup events.
-         * @param {KeyboardEvent} event - The keyboard event.
          */
         function keyUpHandler(event) {
             const key = event.key.toLowerCase();
@@ -90,78 +159,147 @@
         }
 
         /**
-         * Updates the player's position based on input and world boundaries.
+         * Checks if the player would collide with non-walkable tiles at the target position.
+         * @param {number} targetX - The intended new X coordinate of the player.
+         * @param {number} targetY - The intended new Y coordinate of the player.
+         * @returns {boolean} True if collision occurs, false otherwise.
+         */
+        function checkCollision(targetX, targetY) {
+            // Define points around the player's bounding box to check for collision
+            // These points cover the corners of the player's hitbox.
+            const collisionPoints = [
+                { x: targetX, y: targetY },                                // Top-left
+                { x: targetX + player.width - 1, y: targetY },             // Top-right
+                { x: targetX, y: targetY + player.height - 1 },            // Bottom-left
+                { x: targetX + player.width - 1, y: targetY + player.height - 1 } // Bottom-right
+            ];
+
+            for (const point of collisionPoints) {
+                const tileCol = Math.floor(point.x / TILE_SIZE);
+                const tileRow = Math.floor(point.y / TILE_SIZE);
+
+                // Check if point is outside world boundaries (treat as collision)
+                if (tileRow < 0 || tileRow >= WORLD_ROWS || tileCol < 0 || tileCol >= WORLD_COLS) {
+                    return true; // Collision with world edge
+                }
+
+                const tileId = gameMap[tileRow][tileCol];
+                // Check if tile is undefined (should not happen if map is correct) or not walkable
+                if (tileId === undefined || !tileTypes[tileId] || !tileTypes[tileId].walkable) {
+                    return true; // Collision with non-walkable tile
+                }
+            }
+            return false; // No collision
+        }
+
+        /**
+         * Updates player position based on input, handling collisions.
          */
         function updatePlayerPosition() {
-            let dx = 0;
-            let dy = 0;
+            let intendedDx = 0;
+            let intendedDy = 0;
 
-            if (keysPressed.ArrowUp || keysPressed.w) dy -= player.speed;
-            if (keysPressed.ArrowDown || keysPressed.s) dy += player.speed;
-            if (keysPressed.ArrowLeft || keysPressed.a) dx -= player.speed;
-            if (keysPressed.ArrowRight || keysPressed.d) dx += player.speed;
+            if (keysPressed.ArrowUp || keysPressed.w) intendedDy -= player.speed;
+            if (keysPressed.ArrowDown || keysPressed.s) intendedDy += player.speed;
+            if (keysPressed.ArrowLeft || keysPressed.a) intendedDx -= player.speed;
+            if (keysPressed.ArrowRight || keysPressed.d) intendedDx += player.speed;
 
-            // Update player position
-            player.x += dx;
-            player.y += dy;
+            // Check horizontal movement
+            if (intendedDx !== 0) {
+                if (!checkCollision(player.x + intendedDx, player.y)) {
+                    player.x += intendedDx;
+                }
+            }
 
-            // World boundary checks for the player
-            if (player.x < 0) player.x = 0;
-            if (player.x + player.width > worldWidth) player.x = worldWidth - player.width;
-            if (player.y < 0) player.y = 0;
-            if (player.y + player.height > worldHeight) player.y = worldHeight - player.height;
+            // Check vertical movement
+            if (intendedDy !== 0) {
+                // Use the potentially updated player.x for vertical collision check
+                if (!checkCollision(player.x, player.y + intendedDy)) {
+                    player.y += intendedDy;
+                }
+            }
+
+            // Ensure player stays within world boundaries (final clamp)
+            player.x = Math.max(0, Math.min(player.x, worldWidth - player.width));
+            player.y = Math.max(0, Math.min(player.y, worldHeight - player.height));
         }
 
+
         /**
-         * Updates the camera's position to follow the player, clamped to world boundaries.
+         * Updates camera position to follow the player.
          */
         function updateCameraPosition() {
-            // Target camera position to center the player
-            let targetX = player.x + player.width / 2 - camera.width / 2;
-            let targetY = player.y + player.height / 2 - camera.height / 2;
+            camera.x = player.x + player.width / 2 - camera.width / 2;
+            camera.y = player.y + player.height / 2 - camera.height / 2;
 
-            // Clamp camera position to world boundaries
-            camera.x = Math.max(0, Math.min(targetX, worldWidth - camera.width));
-            camera.y = Math.max(0, Math.min(targetY, worldHeight - camera.height));
+            // Clamp camera to world boundaries
+            camera.x = Math.max(0, Math.min(camera.x, worldWidth - camera.width));
+            camera.y = Math.max(0, Math.min(camera.y, worldHeight - camera.height));
         }
 
         /**
-         * Draws the visible portion of the tiled background map.
+         * Draws the visible portion of the map.
          */
         function drawMap() {
-            // Calculate the range of tiles to draw based on camera position
-            const startCol = Math.floor(camera.x / TILE_SIZE);
-            const endCol = Math.min(WORLD_COLS -1 , Math.floor((camera.x + camera.width) / TILE_SIZE));
-            const startRow = Math.floor(camera.y / TILE_SIZE);
-            const endRow = Math.min(WORLD_ROWS -1, Math.floor((camera.y + camera.height) / TILE_SIZE));
+            const startCol = Math.max(0, Math.floor(camera.x / TILE_SIZE));
+            const endCol = Math.min(WORLD_COLS - 1, Math.floor((camera.x + camera.width) / TILE_SIZE));
+            const startRow = Math.max(0, Math.floor(camera.y / TILE_SIZE));
+            const endRow = Math.min(WORLD_ROWS - 1, Math.floor((camera.y + camera.height) / TILE_SIZE));
 
-            for (let row = startRow; row <= endRow; row++) {
-                for (let col = startCol; col <= endCol; col++) {
-                    const tileX = col * TILE_SIZE;
-                    const tileY = row * TILE_SIZE;
+            for (let r = startRow; r <= endRow; r++) {
+                for (let c = startCol; c <= endCol; c++) {
+                    const tileId = gameMap[r][c];
+                    const tile = tileTypes[tileId];
+                    const tileWorldX = c * TILE_SIZE;
+                    const tileWorldY = r * TILE_SIZE;
 
-                    // Determine tile color for a checkerboard pattern
-                    if ((col + row) % 2 === 0) {
-                        ctx.fillStyle = TILE_COLOR_LIGHT;
-                    } else {
-                        ctx.fillStyle = TILE_COLOR_DARK;
+                    // Draw tile base color
+                    ctx.fillStyle = tile.color;
+                    ctx.fillRect(tileWorldX - camera.x, tileWorldY - camera.y, TILE_SIZE, TILE_SIZE);
+
+                    // Add detail for specific tiles like trees
+                    if (tile.isObstacle && tileId === TILE_ID.TREE) {
+                        ctx.fillStyle = '#275218'; // Darker green for tree "trunk/detail"
+                        const detailSize = TILE_SIZE * 0.5;
+                        const detailOffset = (TILE_SIZE - detailSize) / 2;
+                        ctx.fillRect(
+                            tileWorldX - camera.x + detailOffset,
+                            tileWorldY - camera.y + detailOffset,
+                            detailSize,
+                            detailSize
+                        );
+                         // Add a small highlight or different shade for canopy
+                        ctx.fillStyle = '#558B2F'; // Lighter green for canopy top
+                        const canopySize = TILE_SIZE * 0.8;
+                        const canopyOffset = (TILE_SIZE - canopySize) / 2;
+                         ctx.fillRect(
+                            tileWorldX - camera.x + canopyOffset,
+                            tileWorldY - camera.y + canopyOffset,
+                            canopySize,
+                            canopySize * 0.6 // Make canopy slightly shorter
+                        );
+                        // Re-apply trunk color on top for layering effect
+                         ctx.fillStyle = '#275218';
+                         ctx.fillRect(
+                            tileWorldX - camera.x + detailOffset,
+                            tileWorldY - camera.y + detailOffset + TILE_SIZE * 0.2, // Shift trunk down a bit
+                            detailSize,
+                            detailSize * 1.5 // Make trunk taller
+                        );
+
                     }
-                    // Draw tile relative to camera
-                    ctx.fillRect(tileX - camera.x, tileY - camera.y, TILE_SIZE, TILE_SIZE);
                 }
             }
         }
 
         /**
-         * Draws the player sprite relative to the camera.
+         * Draws the player.
          */
         function drawPlayer() {
             ctx.fillStyle = player.color;
-            // Draw player relative to camera
             ctx.fillRect(player.x - camera.x, player.y - camera.y, player.width, player.height);
-
             ctx.strokeStyle = 'black';
-            ctx.lineWidth = 2;
+            ctx.lineWidth = 1.5;
             ctx.strokeRect(player.x - camera.x, player.y - camera.y, player.width, player.height);
         }
 
@@ -169,48 +307,31 @@
          * Main game loop.
          */
         function gameLoop() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear canvas
-
-            updatePlayerPosition(); // Update player based on input and world bounds
-            updateCameraPosition(); // Update camera to follow player
-
-            drawMap();              // Draw visible part of the map
-            drawPlayer();           // Draw player relative to camera
-
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            updatePlayerPosition();
+            updateCameraPosition();
+            drawMap();
+            drawPlayer();
             requestAnimationFrame(gameLoop);
         }
 
         /**
-         * Resizes the canvas and updates camera dimensions.
+         * Resizes canvas and updates camera.
          */
         function resizeCanvas() {
             const aspectRatio = 16 / 9;
-            let newWidth = window.innerWidth * 0.75; // Slightly smaller canvas for better focus
+            let newWidth = window.innerWidth * 0.75;
             let newHeight = window.innerHeight * 0.75;
 
-            if (newWidth / newHeight > aspectRatio) {
-                newWidth = newHeight * aspectRatio;
-            } else {
-                newHeight = newWidth / aspectRatio;
-            }
+            if (newWidth / newHeight > aspectRatio) newWidth = newHeight * aspectRatio;
+            else newHeight = newWidth / aspectRatio;
 
             canvas.width = newWidth;
             canvas.height = newHeight;
-
-            // Update camera dimensions
             camera.width = canvas.width;
             camera.height = canvas.height;
 
-            // Ensure player is correctly positioned if world is smaller than canvas (edge case)
-            player.x = Math.min(player.x, worldWidth - player.width);
-            player.y = Math.min(player.y, worldHeight - player.height);
-            if (player.x < 0) player.x = 0;
-            if (player.y < 0) player.y = 0;
-
-
-            // Initial camera position update after canvas size is known
-            // This will also handle clamping if the world is smaller than the canvas
-            updateCameraPosition();
+            updateCameraPosition(); // Ensure camera is updated after resize
         }
 
         /**
@@ -220,19 +341,18 @@
             document.addEventListener('keydown', keyDownHandler);
             document.addEventListener('keyup', keyUpHandler);
 
-            resizeCanvas(); // Set initial canvas and camera size
+            generateMap(); // 1. Create the world map data
+
+            // 2. Set initial player position (e.g., center of the world)
+            player.x = (worldWidth - player.width) / 2;
+            player.y = (worldHeight - player.height) / 2;
+
+            securePlayerStart(); // 3. Ensure player's start is walkable
+
+            resizeCanvas(); // 4. Set canvas/camera size, which also calls updateCameraPosition
 
             window.addEventListener('resize', resizeCanvas);
-
-            // Set player's initial position more thoughtfully within the world.
-            // If the world is smaller than the canvas in any dimension, player is at 0,0.
-            player.x = Math.max(0, (worldWidth - player.width) / 2);
-            player.y = Math.max(0, (worldHeight - player.height) / 2);
-
-            // Ensure camera is correctly positioned initially
-            updateCameraPosition();
-
-            gameLoop();
+            gameLoop(); // 5. Start the game
         }
 
         window.onload = init;
