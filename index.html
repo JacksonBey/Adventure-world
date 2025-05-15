@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pixel Peasant Walking Animation</title>
+    <title>Pixel Peasant Walking Animation (Fixed)</title>
     <style>
         body {
             margin: 0;
@@ -38,7 +38,7 @@
         const worldWidth = WORLD_COLS * TILE_SIZE;
         const worldHeight = WORLD_ROWS * TILE_SIZE;
 
-        // Tile type IDs and definitions (no changes here)
+        // Tile type IDs and definitions
         const TILE_ID = { GRASS: 0, WATER: 1, STONE: 2, DIRT: 3, TREE: 4, SAND: 5 };
         const tileTypes = {
             [TILE_ID.GRASS]: { name: 'grass', color: '#7db860', walkable: true },
@@ -238,7 +238,7 @@
             w: false, a: false, s: false, d: false
         };
 
-        // Map Generation and Secure Start (no changes from previous version)
+        // Map Generation
         function generateMap() {
             gameMap = [];
             for (let r = 0; r < WORLD_ROWS; r++) { gameMap[r] = []; for (let c = 0; c < WORLD_COLS; c++) { gameMap[r][c] = TILE_ID.GRASS; }}
@@ -277,6 +277,10 @@
                             nearWaterOrSand = true; break; }} if(nearWaterOrSand) break; }
                     if (!nearWaterOrSand && Math.random() < 0.08) { gameMap[r][c] = TILE_ID.TREE; }}}}
         }
+
+        /**
+         * Ensures the player's starting position and a small surrounding area are walkable.
+         */
         function securePlayerStart() {
             let startTileCol, startTileRow; let attempts = 0; const maxAttempts = 100;
             do {
@@ -290,7 +294,8 @@
                 const r = startTileRow + rOffset; const c = startTileCol + cOffset;
                 if (r >= 0 && r < WORLD_ROWS && c >= 0 && c < WORLD_COLS) {
                     if (!tileTypes[gameMap[r][c]].walkable) { gameMap[r][c] = TILE_ID.GRASS; }}}}
-             if (gameMap[startTileRow] && gameMap[startTileRow][startTileCol] !== undefined && !tileTypes[gameMap[startTiler][startTileCol]].walkable) {
+            // Corrected the typo here: startTiler -> startTileRow
+             if (gameMap[startTileRow] && gameMap[startTileRow][startTileCol] !== undefined && !tileTypes[gameMap[startTileRow][startTileCol]].walkable) {
                 gameMap[startTileRow][startTileCol] = TILE_ID.GRASS;}
         }
 
@@ -434,13 +439,11 @@
             document.addEventListener('keyup', keyUpHandler);
             createPlayerSpriteSheet(); // Create animated sprites
             generateMap();
-            securePlayerStart(); // Small fix in securePlayerStart: gameMap[startTileRow][startTileCol]
+            securePlayerStart(); 
             resizeCanvas();
             window.addEventListener('resize', resizeCanvas);
             gameLoop();
         }
-        // Small fix in securePlayerStart: gameMap[startTileRow][startTileCol] was gameMap[startTiler][startTileCol]
-        // Corrected in the full code block for init.
         window.onload = init;
     </script>
 </body>
