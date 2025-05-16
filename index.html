@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pixel Peasant with Minimap</title>
+    <title>Pixel Peasant with Minimap (Fixed)</title>
     <style>
         body {
             margin: 0;
@@ -75,17 +75,11 @@
 
         // Minimap properties
         const minimap = {
-            x: 0, // Will be calculated in resizeCanvas
-            y: 10, // Padding from top
-            width: 0, // Will be calculated
-            height: 0, // Will be calculated
-            padding: 10,
-            borderColor: '#ccc',
-            playerColor: '#ffffff', // White dot for player
-            playerSize: 3 // Size of the player dot on the minimap
+            x: 0, y: 10, width: 0, height: 0, padding: 10,
+            borderColor: '#ccc', playerColor: '#ffffff', playerSize: 3
         };
 
-
+        // Player Sprite Creation Functions (These appeared complete in your context)
         function createPlayerSpriteSheet() {
             player.spriteSheet = { 'down': [], 'up': [], 'left': [], 'right': [] };
             for (let i = 0; i < player.numAnimationFrames; i++) {
@@ -152,14 +146,15 @@
 
         // Camera object
         const camera = { x: 0, y: 0, width: canvas.width, height: canvas.height };
+
         // Key tracking
         const keysPressed = {
             ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false,
             w: false, a: false, s: false, d: false
         };
 
-        // Map Generation and Secure Start (no changes from previous version)
-        function generateMap() { /* ... (map generation code remains the same) ... */
+        // Map Generation and Secure Start (These appeared complete in your context)
+        function generateMap() {
             gameMap = [];
             for (let r = 0; r < WORLD_ROWS; r++) { gameMap[r] = []; for (let c = 0; c < WORLD_COLS; c++) { gameMap[r][c] = TILE_ID.GRASS; }}
             const numLakes = Math.floor(Math.random() * 3) + 2;
@@ -197,7 +192,7 @@
                             nearWaterOrSand = true; break; }} if(nearWaterOrSand) break; }
                     if (!nearWaterOrSand && Math.random() < 0.08) { gameMap[r][c] = TILE_ID.TREE; }}}}
         }
-        function securePlayerStart() { /* ... (secure player start code remains the same) ... */
+        function securePlayerStart() {
             let startTileCol, startTileRow; let attempts = 0; const maxAttempts = 100;
             do {
                 player.x = Math.floor(Math.random() * (worldWidth - player.width)); player.y = Math.floor(Math.random() * (worldHeight - player.height));
@@ -214,21 +209,97 @@
                 gameMap[startTileRow][startTileCol] = TILE_ID.GRASS;}
         }
 
+        // --- FULLY IMPLEMENTED CORE FUNCTIONS ---
+        /**
+         * Handles keydown events to set the corresponding key state to true.
+         * @param {KeyboardEvent} event - The keyboard event object.
+         */
+        function keyDownHandler(event) {
+            const key = event.key.toLowerCase(); // Normalize key to lowercase for WASD
+            if (event.key in keysPressed) { // Arrow keys
+                keysPressed[event.key] = true;
+                event.preventDefault(); // Prevent default browser action for arrow keys (scrolling)
+            } else if (key in keysPressed) { // WASD keys
+                keysPressed[key] = true;
+                event.preventDefault();
+            }
+        }
 
-        function keyDownHandler(event) { /* ... */ }
-        function keyUpHandler(event) { /* ... */ }
-        function checkCollision(targetX, targetY) { /* ... */ return false;} // Placeholder, actual code is there
-        function updatePlayerPosition() { /* ... (player update code remains the same, including animation logic) ... */
+        /**
+         * Handles keyup events to set the corresponding key state to false.
+         * @param {KeyboardEvent} event - The keyboard event object.
+         */
+        function keyUpHandler(event) {
+            const key = event.key.toLowerCase();
+            if (event.key in keysPressed) {
+                keysPressed[event.key] = false;
+                event.preventDefault();
+            } else if (key in keysPressed) {
+                keysPressed[key] = false;
+                event.preventDefault();
+            }
+        }
+
+        /**
+         * Checks if the player would collide with non-walkable tiles at the target position.
+         * @param {number} targetX - The intended new X coordinate of the player.
+         * @param {number} targetY - The intended new Y coordinate of the player.
+         * @returns {boolean} True if collision occurs, false otherwise.
+         */
+        function checkCollision(targetX, targetY) {
+            // Define points around the player's bounding box to check for collision
+            const collisionPoints = [
+                { x: targetX, y: targetY },                                // Top-left
+                { x: targetX + player.width - 1, y: targetY },             // Top-right
+                { x: targetX, y: targetY + player.height - 1 },            // Bottom-left
+                { x: targetX + player.width - 1, y: targetY + player.height - 1 } // Bottom-right
+            ];
+
+            for (const point of collisionPoints) {
+                const tileCol = Math.floor(point.x / TILE_SIZE);
+                const tileRow = Math.floor(point.y / TILE_SIZE);
+
+                // Check if point is outside world boundaries (treat as collision)
+                if (tileRow < 0 || tileRow >= WORLD_ROWS || tileCol < 0 || tileCol >= WORLD_COLS) {
+                    return true; // Collision with world edge
+                }
+
+                const tileId = gameMap[tileRow][tileCol];
+                // Check if tile is undefined (should not happen if map is correct) or not walkable
+                if (tileId === undefined || !tileTypes[tileId] || !tileTypes[tileId].walkable) {
+                    return true; // Collision with non-walkable tile
+                }
+            }
+            return false; // No collision
+        }
+
+        /**
+         * Updates player position based on input, handling collisions and animation.
+         */
+        function updatePlayerPosition() {
             let intendedDx = 0; let intendedDy = 0; let currentlyMoving = false;
             if (keysPressed.ArrowUp || keysPressed.w) { intendedDy -= player.speed; player.facing = 'up'; currentlyMoving = true; }
             if (keysPressed.ArrowDown || keysPressed.s) { intendedDy += player.speed; player.facing = 'down'; currentlyMoving = true; }
             if (keysPressed.ArrowLeft || keysPressed.a) { intendedDx -= player.speed; player.facing = 'left'; currentlyMoving = true; }
             if (keysPressed.ArrowRight || keysPressed.d) { intendedDx += player.speed; player.facing = 'right'; currentlyMoving = true; }
             player.isMoving = currentlyMoving;
-            if (intendedDx !== 0) { if (!checkCollision(player.x + intendedDx, player.y)) player.x += intendedDx; }
-            if (intendedDy !== 0) { if (!checkCollision(player.x, player.y + intendedDy)) player.y += intendedDy; }
+
+            // Horizontal movement and collision check
+            if (intendedDx !== 0) {
+                if (!checkCollision(player.x + intendedDx, player.y)) {
+                     player.x += intendedDx;
+                }
+            }
+            // Vertical movement and collision check
+            if (intendedDy !== 0) {
+                if (!checkCollision(player.x, player.y + intendedDy)) { // Use current player.x for this check
+                    player.y += intendedDy;
+                }
+            }
+
             player.x = Math.max(0, Math.min(player.x, worldWidth - player.width));
             player.y = Math.max(0, Math.min(player.y, worldHeight - player.height));
+
             if (player.isMoving) {
                 player.animationTimer++;
                 if (player.animationTimer >= player.animationSpeed) {
@@ -237,9 +308,24 @@
                 }
             } else { player.currentFrame = 0; player.animationTimer = 0; }
         }
-        function updateCameraPosition() { /* ... */ }
 
-        function drawMap() { /* ... (map drawing code remains the same) ... */
+        /**
+         * Updates the camera's position to follow the player, clamped to world boundaries.
+         */
+        function updateCameraPosition() {
+            // Target camera position to center the player
+            let targetX = player.x + player.width / 2 - camera.width / 2;
+            let targetY = player.y + player.height / 2 - camera.height / 2;
+
+            // Clamp camera position to world boundaries
+            camera.x = Math.max(0, Math.min(targetX, worldWidth - camera.width));
+            camera.y = Math.max(0, Math.min(targetY, worldHeight - camera.height));
+        }
+        // --- END OF FULLY IMPLEMENTED CORE FUNCTIONS ---
+
+
+        // Drawing functions (These appeared complete in your context)
+        function drawMap() {
             const startCol = Math.max(0, Math.floor(camera.x / TILE_SIZE));
             const endCol = Math.min(WORLD_COLS - 1, Math.floor((camera.x + camera.width) / TILE_SIZE) +1);
             const startRow = Math.max(0, Math.floor(camera.y / TILE_SIZE));
@@ -252,7 +338,7 @@
                 ctx.fillRect(Math.floor(tileWorldX - camera.x), Math.floor(tileWorldY - camera.y), TILE_SIZE, TILE_SIZE);
             }}
         }
-        function drawPlayer() { /* ... (player drawing code remains the same) ... */
+        function drawPlayer() {
             if (!player.spriteSheet || !player.spriteSheet[player.facing]) return;
             const animationFrames = player.spriteSheet[player.facing];
             const currentSpriteFrame = animationFrames[player.currentFrame];
@@ -262,27 +348,15 @@
             ctx.imageSmoothingEnabled = false;
             ctx.drawImage(currentSpriteFrame, Math.floor(drawX), Math.floor(drawY));
         }
-
-        /**
-         * Draws the minimap on the main canvas.
-         */
         function drawMinimap() {
-            if (!gameMap.length) return; // Don't draw if map isn't generated
-
-            // Background for the minimap
-            ctx.fillStyle = 'rgba(50, 50, 50, 0.75)'; // Semi-transparent dark gray
+            if (!gameMap.length) return;
+            ctx.fillStyle = 'rgba(50, 50, 50, 0.75)';
             ctx.fillRect(minimap.x, minimap.y, minimap.width, minimap.height);
-
-            // Border for the minimap
             ctx.strokeStyle = minimap.borderColor;
             ctx.lineWidth = 2;
             ctx.strokeRect(minimap.x, minimap.y, minimap.width, minimap.height);
-
-            // Calculate the size of each tile on the minimap
             const minimapTileWidth = minimap.width / WORLD_COLS;
             const minimapTileHeight = minimap.height / WORLD_ROWS;
-
-            // Draw world tiles on the minimap
             for (let r = 0; r < WORLD_ROWS; r++) {
                 for (let c = 0; c < WORLD_COLS; c++) {
                     const tileId = gameMap[r][c];
@@ -292,31 +366,27 @@
                         ctx.fillRect(
                             minimap.x + c * minimapTileWidth,
                             minimap.y + r * minimapTileHeight,
-                            minimapTileWidth, // Use Math.ceil to avoid gaps if sizes are fractional
-                            minimapTileHeight
+                            minimapTileWidth, minimapTileHeight
                         );
                     }
                 }
             }
-
-            // Draw player position on the minimap
             const playerMinimapX = minimap.x + (player.x / worldWidth) * minimap.width;
             const playerMinimapY = minimap.y + (player.y / worldHeight) * minimap.height;
-
             ctx.fillStyle = minimap.playerColor;
             ctx.beginPath();
             ctx.arc(playerMinimapX, playerMinimapY, minimap.playerSize, 0, Math.PI * 2);
             ctx.fill();
         }
 
-
+        // Game Loop and Setup
         function gameLoop() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             updatePlayerPosition();
             updateCameraPosition();
             drawMap();
             drawPlayer();
-            drawMinimap(); // Draw minimap last to be on top
+            drawMinimap();
             requestAnimationFrame(gameLoop);
         }
 
@@ -330,14 +400,10 @@
             canvas.height = Math.floor(newHeight);
             camera.width = canvas.width;
             camera.height = canvas.height;
-
-            // Calculate minimap dimensions and position (e.g., top right)
-            minimap.width = canvas.width * 0.2; // Minimap is 20% of canvas width
-            minimap.height = minimap.width * (worldHeight / worldWidth); // Maintain aspect ratio
+            minimap.width = canvas.width * 0.2;
+            minimap.height = minimap.width * (worldHeight / worldWidth);
             minimap.x = canvas.width - minimap.width - minimap.padding;
             minimap.y = minimap.padding;
-
-
             updateCameraPosition();
         }
 
@@ -347,7 +413,7 @@
             createPlayerSpriteSheet();
             generateMap();
             securePlayerStart();
-            resizeCanvas(); // This will also set initial minimap dimensions
+            resizeCanvas();
             window.addEventListener('resize', resizeCanvas);
             gameLoop();
         }
