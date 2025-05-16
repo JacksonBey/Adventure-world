@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pixel Peasant with Idle Goblin</title>
+    <title>Enemy Collision Detection</title>
     <style>
         body {
             margin: 0;
@@ -54,7 +54,10 @@
         const player = {
             x: worldWidth / 2, y: worldHeight / 2, width: 28, height: 28, speed: 3.8,
             facing: 'down', spriteSheet: null, spriteFrameWidth: 32, spriteFrameHeight: 40,
-            isMoving: false, currentFrame: 0, animationTimer: 0, animationSpeed: 10, numAnimationFrames: 2
+            isMoving: false, currentFrame: 0, animationTimer: 0, animationSpeed: 10, numAnimationFrames: 2,
+            // Collision properties
+            collidedTimer: 0,       // Timer for collision visual effect
+            collisionDuration: 30   // How many frames the collision effect lasts
         };
 
         // Peasant sprite colors
@@ -63,25 +66,19 @@
         };
 
         // Enemy properties and data
-        const enemies = []; // Array to hold all enemy objects
+        const enemies = [];
         const goblinColors = {
-            skin: '#5c9650', // Greenish skin
-            eyes: '#ff0000', // Red eyes
-            loincloth: '#7a5230', // Brown loincloth
-            teeth: '#ffffff' // White teeth
+            skin: '#5c9650', eyes: '#ff0000', loincloth: '#7a5230', teeth: '#ffffff'
         };
 
         // Minimap properties
         const minimap = {
             x: 0, y: 10, width: 0, height: 0, padding: 10,
             borderColor: '#ccc', playerColor: '#ffffff', playerSize: 3,
-            enemyColor: '#ff0000' // Red dot for enemies on minimap
+            enemyColor: '#ff0000'
         };
 
 
-        /**
-         * Creates the player's animated sprite sheet.
-         */
         function createPlayerSpriteSheet() {
             player.spriteSheet = { 'down': [], 'up': [], 'left': [], 'right': [] };
             for (let i = 0; i < player.numAnimationFrames; i++) {
@@ -92,36 +89,25 @@
             }
         }
 
-        /**
-         * Creates a single animation frame for the peasant sprite.
-         * @param {string} direction - The direction the peasant is facing.
-         * @param {number} frameIndex - The animation frame index (0 for idle, 1 for step).
-         * @returns {HTMLCanvasElement} An offscreen canvas with the rendered peasant frame.
-         */
         function createPeasantSpriteFrame(direction, frameIndex) {
             const frameCanvas = document.createElement('canvas');
             frameCanvas.width = player.spriteFrameWidth;
             frameCanvas.height = player.spriteFrameHeight;
             const frameCtx = frameCanvas.getContext('2d');
-            const px = 4; // "Pixel" size for drawing the sprite
-
-            // Common elements (Head, Hair, Base Torso)
+            const px = 4;
             frameCtx.fillStyle = peasantColors.skin;
-            frameCtx.fillRect(3*px, 0*px, 2*px, 2*px); // Top of head
-            frameCtx.fillRect(2*px, 1*px, 4*px, 3*px); // Main head shape
+            frameCtx.fillRect(3*px, 0*px, 2*px, 2*px);
+            frameCtx.fillRect(2*px, 1*px, 4*px, 3*px);
             frameCtx.fillStyle = peasantColors.hair;
-            frameCtx.fillRect(2*px, 0*px, 4*px, 1*px); // Hair top
-            frameCtx.fillRect(1*px, 1*px, 1*px, 2*px); // Hair side left
-            frameCtx.fillRect(6*px, 1*px, 1*px, 2*px); // Hair side right
+            frameCtx.fillRect(2*px, 0*px, 4*px, 1*px);
+            frameCtx.fillRect(1*px, 1*px, 1*px, 2*px);
+            frameCtx.fillRect(6*px, 1*px, 1*px, 2*px);
             frameCtx.fillStyle = peasantColors.tunic;
-            frameCtx.fillRect(2*px, 4*px, 4*px, 4*px); // Torso
-
-            // Direction and Frame specific features (arms, legs, eyes)
+            frameCtx.fillRect(2*px, 4*px, 4*px, 4*px);
             let arm1X, arm1Y, arm1W, arm1H, arm2X, arm2Y, arm2W, arm2H;
             let leg1X, leg1Y, leg1W, leg1H, leg2X, leg2Y, leg2W, leg2H;
             const defaultArmY = 4*px; const defaultArmH = 3*px;
             const defaultLegY = 8*px; const defaultLegH = 2*px;
-
             switch (direction) {
                 case 'down':
                     frameCtx.fillStyle = peasantColors.eyes; frameCtx.fillRect(3*px, 2*px, 1*px, 1*px); frameCtx.fillRect(5*px, 2*px, 1*px, 1*px);
@@ -131,26 +117,25 @@
                     break;
                 case 'up':
                     arm1X = 1*px; arm1W = 1*px; arm2X = 6*px; arm2W = 1*px; leg1X = 2*px; leg1W = 2*px; leg2X = 4*px; leg2W = 2*px;
-                    frameCtx.fillStyle = peasantColors.tunic; frameCtx.fillRect(2*px, 7*px, 4*px, 1*px); // Back of tunic
+                    frameCtx.fillStyle = peasantColors.tunic; frameCtx.fillRect(2*px, 7*px, 4*px, 1*px);
                     if (frameIndex === 0) { arm1Y = defaultArmY; arm1H = defaultArmH; arm2Y = defaultArmY; arm2H = defaultArmH; leg1Y = defaultLegY; leg1H = defaultLegH; leg2Y = defaultLegY; leg2H = defaultLegH; }
                     else { arm1Y = defaultArmY; arm1H = defaultArmH + 0.5*px; arm2Y = defaultArmY - 0.5*px; arm2H = defaultArmH; leg1Y = defaultLegY; leg1H = defaultLegH; leg2Y = defaultLegY + 0.5*px; leg2H = defaultLegH - 0.5*px; }
                     break;
                 case 'left':
-                    frameCtx.fillStyle = peasantColors.eyes; frameCtx.fillRect(2*px, 2*px, 1*px, 1*px); frameCtx.fillStyle = peasantColors.skin; frameCtx.fillRect(1*px, 2*px, 1*px, 1*px); // Nose
+                    frameCtx.fillStyle = peasantColors.eyes; frameCtx.fillRect(2*px, 2*px, 1*px, 1*px); frameCtx.fillStyle = peasantColors.skin; frameCtx.fillRect(1*px, 2*px, 1*px, 1*px);
                     arm1X = 3*px; arm1W = 1*px; arm1Y = defaultArmY; arm1H = defaultArmH; arm2X = 2*px; arm2W = 1*px; arm2Y = defaultArmY + 0.5*px; arm2H = defaultArmH - 1*px;
                     leg1X = 2*px; leg1W = 2*px; leg2X = 4*px; leg2W = 1*px;
                     if (frameIndex === 0) { leg1Y = defaultLegY; leg1H = defaultLegH; leg2Y = defaultLegY; leg2H = defaultLegH; }
                     else { leg1Y = defaultLegY; leg1H = defaultLegH; leg2Y = defaultLegY + 0.5*px; leg2H = defaultLegH - 0.5*px; arm1Y = defaultArmY - 0.5*px; arm2Y = defaultArmY + 1*px; }
                     break;
                 case 'right':
-                    frameCtx.fillStyle = peasantColors.eyes; frameCtx.fillRect(5*px, 2*px, 1*px, 1*px); frameCtx.fillStyle = peasantColors.skin; frameCtx.fillRect(6*px, 2*px, 1*px, 1*px); // Nose
+                    frameCtx.fillStyle = peasantColors.eyes; frameCtx.fillRect(5*px, 2*px, 1*px, 1*px); frameCtx.fillStyle = peasantColors.skin; frameCtx.fillRect(6*px, 2*px, 1*px, 1*px);
                     arm1X = 4*px; arm1W = 1*px; arm1Y = defaultArmY; arm1H = defaultArmH; arm2X = 5*px; arm2W = 1*px; arm2Y = defaultArmY + 0.5*px; arm2H = defaultArmH - 1*px;
                     leg1X = 4*px; leg1W = 2*px; leg2X = 3*px; leg2W = 1*px;
                     if (frameIndex === 0) { leg1Y = defaultLegY; leg1H = defaultLegH; leg2Y = defaultLegY; leg2H = defaultLegH; }
                     else { leg1Y = defaultLegY; leg1H = defaultLegH; leg2Y = defaultLegY + 0.5*px; leg2H = defaultLegH - 0.5*px; arm1Y = defaultArmY - 0.5*px; arm2Y = defaultArmY + 1*px; }
                     break;
             }
-            // Draw arms and legs
             frameCtx.fillStyle = peasantColors.tunic;
             if (arm1W > 0) frameCtx.fillRect(arm1X, arm1Y, arm1W, arm1H); if (arm2W > 0) frameCtx.fillRect(arm2X, arm2Y, arm2W, arm2H);
             frameCtx.fillStyle = peasantColors.pants;
@@ -158,94 +143,35 @@
             return frameCanvas;
         }
 
-        /**
-         * Creates a single sprite frame for a goblin.
-         * @returns {HTMLCanvasElement} An offscreen canvas with the rendered goblin sprite.
-         */
         function createGoblinSpriteFrame() {
-            const frameWidth = 30; // Goblin sprite width
-            const frameHeight = 36; // Goblin sprite height
+            const frameWidth = 30; const frameHeight = 36;
             const frameCanvas = document.createElement('canvas');
-            frameCanvas.width = frameWidth;
-            frameCanvas.height = frameHeight;
-            const frameCtx = frameCanvas.getContext('2d');
-            const px = 3; // "Pixel" size for drawing the goblin
-
-            // Head
-            frameCtx.fillStyle = goblinColors.skin;
-            frameCtx.fillRect(2*px, 0*px, 6*px, 5*px); // Main head shape
-            frameCtx.fillRect(1*px, 1*px, 1*px, 3*px); // Left ear
-            frameCtx.fillRect(8*px, 1*px, 1*px, 3*px); // Right ear
-
-            // Eyes
-            frameCtx.fillStyle = goblinColors.eyes;
-            frameCtx.fillRect(3*px, 2*px, 1*px, 1*px); // Left eye
-            frameCtx.fillRect(6*px, 2*px, 1*px, 1*px); // Right eye
-
-            // Teeth/Mouth (simple)
-            frameCtx.fillStyle = goblinColors.teeth;
-            frameCtx.fillRect(4*px, 4*px, 2*px, 1*px);
-
-            // Body/Loincloth
-            frameCtx.fillStyle = goblinColors.skin; // Torso
-            frameCtx.fillRect(3*px, 5*px, 4*px, 3*px);
-            frameCtx.fillStyle = goblinColors.loincloth;
-            frameCtx.fillRect(2.5*px, 7*px, 5*px, 2*px); // Loincloth
-
-            // Arms
-            frameCtx.fillStyle = goblinColors.skin;
-            frameCtx.fillRect(1*px, 5*px, 2*px, 2*px); // Left arm
-            frameCtx.fillRect(7*px, 5*px, 2*px, 2*px); // Right arm
-
-            // Legs
-            frameCtx.fillRect(3*px, 9*px, 2*px, 2*px); // Left leg
-            frameCtx.fillRect(5*px, 9*px, 2*px, 2*px); // Right leg
-
+            frameCanvas.width = frameWidth; frameCanvas.height = frameHeight;
+            const frameCtx = frameCanvas.getContext('2d'); const px = 3;
+            frameCtx.fillStyle = goblinColors.skin; frameCtx.fillRect(2*px, 0*px, 6*px, 5*px); frameCtx.fillRect(1*px, 1*px, 1*px, 3*px); frameCtx.fillRect(8*px, 1*px, 1*px, 3*px);
+            frameCtx.fillStyle = goblinColors.eyes; frameCtx.fillRect(3*px, 2*px, 1*px, 1*px); frameCtx.fillRect(6*px, 2*px, 1*px, 1*px);
+            frameCtx.fillStyle = goblinColors.teeth; frameCtx.fillRect(4*px, 4*px, 2*px, 1*px);
+            frameCtx.fillStyle = goblinColors.skin; frameCtx.fillRect(3*px, 5*px, 4*px, 3*px); frameCtx.fillStyle = goblinColors.loincloth; frameCtx.fillRect(2.5*px, 7*px, 5*px, 2*px);
+            frameCtx.fillStyle = goblinColors.skin; frameCtx.fillRect(1*px, 5*px, 2*px, 2*px); frameCtx.fillRect(7*px, 5*px, 2*px, 2*px); frameCtx.fillRect(3*px, 9*px, 2*px, 2*px); frameCtx.fillRect(5*px, 9*px, 2*px, 2*px);
             return frameCanvas;
         }
 
-        /**
-         * Initializes enemies, placing them in the world.
-         */
         function initializeEnemies() {
-            // For now, add one goblin at a fixed position
-            // Try to find a walkable spot for the goblin
-            let goblinX, goblinY, tileCol, tileRow;
-            let attempts = 0;
-            const maxAttempts = 50;
-            let placed = false;
-
+            let goblinX, goblinY, tileCol, tileRow; let attempts = 0; const maxAttempts = 50; let placed = false;
             do {
-                // Pick a random-ish position not too close to the center (player start)
                 goblinX = TILE_SIZE * (Math.floor(WORLD_COLS / 4) + Math.floor(Math.random() * (WORLD_COLS / 2)));
                 goblinY = TILE_SIZE * (Math.floor(WORLD_ROWS / 4) + Math.floor(Math.random() * (WORLD_ROWS / 2)));
-                tileCol = Math.floor(goblinX / TILE_SIZE);
-                tileRow = Math.floor(goblinY / TILE_SIZE);
-                attempts++;
-                if (tileRow >= 0 && tileRow < WORLD_ROWS && tileCol >= 0 && tileCol < WORLD_COLS &&
-                    gameMap[tileRow] && gameMap[tileRow][tileCol] !== undefined &&
-                    tileTypes[gameMap[tileRow][tileCol]].walkable) {
+                tileCol = Math.floor(goblinX / TILE_SIZE); tileRow = Math.floor(goblinY / TILE_SIZE); attempts++;
+                if (tileRow >= 0 && tileRow < WORLD_ROWS && tileCol >= 0 && tileCol < WORLD_COLS && gameMap[tileRow] && gameMap[tileRow][tileCol] !== undefined && tileTypes[gameMap[tileRow][tileCol]].walkable) {
                     placed = true;
                 }
             } while (!placed && attempts < maxAttempts);
-
-            if (!placed) { // Fallback if no good spot found
-                goblinX = TILE_SIZE * 10;
-                goblinY = TILE_SIZE * 10;
-            }
-
-
+            if (!placed) { goblinX = TILE_SIZE * 10; goblinY = TILE_SIZE * 10; }
             enemies.push({
-                x: goblinX,
-                y: goblinY,
-                width: 26, // Hitbox width
-                height: 30, // Hitbox height
-                sprite: createGoblinSpriteFrame(),
-                spriteWidth: 30, // Visual width
-                spriteHeight: 36 // Visual height
+                x: goblinX, y: goblinY, width: 26, height: 30,
+                sprite: createGoblinSpriteFrame(), spriteWidth: 30, spriteHeight: 36
             });
         }
-
 
         // Camera object
         const camera = { x: 0, y: 0, width: canvas.width, height: canvas.height };
@@ -322,7 +248,7 @@
             if (event.key in keysPressed) { keysPressed[event.key] = false; event.preventDefault();
             } else if (key in keysPressed) { keysPressed[key] = false; event.preventDefault(); }
         }
-        function checkCollision(targetX, targetY) { /* ... (collision code remains the same) ... */
+        function checkCollision(targetX, targetY) { /* ... (tile collision code remains the same) ... */
             const collisionPoints = [ { x: targetX, y: targetY }, { x: targetX + player.width - 1, y: targetY }, { x: targetX, y: targetY + player.height - 1 }, { x: targetX + player.width - 1, y: targetY + player.height - 1 }];
             for (const point of collisionPoints) {
                 const tileCol = Math.floor(point.x / TILE_SIZE); const tileRow = Math.floor(point.y / TILE_SIZE);
@@ -331,6 +257,25 @@
                 if (tileId === undefined || !tileTypes[tileId] || !tileTypes[tileId].walkable) return true;
             } return false;
         }
+
+        /**
+         * Checks for and handles collisions between the player and enemies.
+         */
+        function checkPlayerEnemyCollisions() {
+            enemies.forEach(enemy => {
+                // AABB collision detection
+                if (player.x < enemy.x + enemy.width &&
+                    player.x + player.width > enemy.x &&
+                    player.y < enemy.y + enemy.height &&
+                    player.y + player.height > enemy.y) {
+                    // Collision detected!
+                    player.collidedTimer = player.collisionDuration;
+                    // console.log("Player collided with an enemy!"); // For debugging
+                    // Future: Handle damage, knockback, etc.
+                }
+            });
+        }
+
 
         // Update Functions
         function updatePlayerPosition() { /* ... (player update code remains the same) ... */
@@ -373,43 +318,47 @@
                 ctx.fillRect(Math.floor(tileWorldX - camera.x), Math.floor(tileWorldY - camera.y), TILE_SIZE, TILE_SIZE);
             }}
         }
-        function drawPlayer() { /* ... (player drawing code remains the same) ... */
+        function drawPlayer() {
             if (!player.spriteSheet || !player.spriteSheet[player.facing]) return;
             const animationFrames = player.spriteSheet[player.facing];
             const currentSpriteFrame = animationFrames[player.currentFrame];
             if (!currentSpriteFrame) { console.error("Missing sprite frame:", player.facing, player.currentFrame); return; }
+
             const drawX = player.x - camera.x - (player.spriteFrameWidth - player.width) / 2;
             const drawY = player.y - camera.y - (player.spriteFrameHeight - player.height) / 2;
+
+            // Draw collision effect if timer is active
+            if (player.collidedTimer > 0) {
+                ctx.save(); // Save current context state
+                // Make it flash by alternating opacity or color
+                if (Math.floor(player.collidedTimer / 5) % 2 === 0) { // Flash every 5 frames
+                     ctx.globalAlpha = 0.5; // Make sprite semi-transparent
+                     // Or draw a red tint
+                     // ctx.fillStyle = 'rgba(255, 0, 0, 0.3)';
+                     // ctx.fillRect(Math.floor(drawX), Math.floor(drawY), player.spriteFrameWidth, player.spriteFrameHeight);
+                }
+            }
+
             ctx.imageSmoothingEnabled = false;
             ctx.drawImage(currentSpriteFrame, Math.floor(drawX), Math.floor(drawY));
+
+            if (player.collidedTimer > 0) {
+                ctx.restore(); // Restore context state (clears globalAlpha)
+                player.collidedTimer--;
+            }
         }
 
-        /**
-         * Draws all enemies in the game.
-         */
         function drawEnemies() {
-            ctx.imageSmoothingEnabled = false; // For crisp pixel art
+            ctx.imageSmoothingEnabled = false;
             enemies.forEach(enemy => {
                 if (!enemy.sprite) return;
-
-                // Calculate top-left corner for drawing the sprite to center it over the enemy's logical hitbox
                 const drawX = enemy.x - camera.x - (enemy.spriteWidth - enemy.width) / 2;
                 const drawY = enemy.y - camera.y - (enemy.spriteHeight - enemy.height) / 2;
-
-                ctx.drawImage(
-                    enemy.sprite,
-                    Math.floor(drawX),
-                    Math.floor(drawY)
-                );
-
-                // Optional: Draw hitbox for debugging
-                // ctx.strokeStyle = 'blue';
-                // ctx.lineWidth = 1;
-                // ctx.strokeRect(Math.floor(enemy.x - camera.x), Math.floor(enemy.y - camera.y), enemy.width, enemy.height);
+                ctx.drawImage( enemy.sprite, Math.floor(drawX), Math.floor(drawY) );
             });
         }
 
-        function drawMinimap() { /* ... (minimap drawing code remains the same, but add enemy dots) ... */
+        function drawMinimap() { /* ... (minimap drawing code remains the same) ... */
             if (!gameMap.length) return;
             ctx.fillStyle = 'rgba(50, 50, 50, 0.75)';
             ctx.fillRect(minimap.x, minimap.y, minimap.width, minimap.height);
@@ -428,22 +377,16 @@
                     }
                 }
             }
-            // Draw enemies on minimap
             enemies.forEach(enemy => {
                 const enemyMinimapX = minimap.x + (enemy.x / worldWidth) * minimap.width;
                 const enemyMinimapY = minimap.y + (enemy.y / worldHeight) * minimap.height;
                 ctx.fillStyle = minimap.enemyColor;
-                ctx.beginPath();
-                ctx.arc(enemyMinimapX, enemyMinimapY, minimap.playerSize, 0, Math.PI * 2); // Using playerSize for enemy dot too
-                ctx.fill();
+                ctx.beginPath(); ctx.arc(enemyMinimapX, enemyMinimapY, minimap.playerSize, 0, Math.PI * 2); ctx.fill();
             });
-            // Draw player on minimap (drawn last to be on top of enemy dots if they overlap)
             const playerMinimapX = minimap.x + (player.x / worldWidth) * minimap.width;
             const playerMinimapY = minimap.y + (player.y / worldHeight) * minimap.height;
             ctx.fillStyle = minimap.playerColor;
-            ctx.beginPath();
-            ctx.arc(playerMinimapX, playerMinimapY, minimap.playerSize, 0, Math.PI * 2);
-            ctx.fill();
+            ctx.beginPath(); ctx.arc(playerMinimapX, playerMinimapY, minimap.playerSize, 0, Math.PI * 2); ctx.fill();
         }
 
         // Game Loop and Setup
@@ -451,9 +394,10 @@
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             updatePlayerPosition();
             updateCameraPosition();
+            checkPlayerEnemyCollisions(); // Check for collisions with enemies
             // updateEnemies(); // Placeholder for future enemy logic
             drawMap();
-            drawEnemies(); // Draw enemies
+            drawEnemies();
             drawPlayer();
             drawMinimap();
             requestAnimationFrame(gameLoop);
@@ -474,9 +418,9 @@
             document.addEventListener('keydown', keyDownHandler);
             document.addEventListener('keyup', keyUpHandler);
             createPlayerSpriteSheet();
-            generateMap(); // Generate map first
+            generateMap();
             securePlayerStart();
-            initializeEnemies(); // Initialize enemies after map is generated
+            initializeEnemies();
             resizeCanvas();
             window.addEventListener('resize', resizeCanvas);
             gameLoop();
